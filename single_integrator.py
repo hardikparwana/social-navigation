@@ -18,6 +18,7 @@ class single_integrator_square:
         
         X0 = pos.reshape(-1,1)
         self.X = X0
+        self.U = np.array([0,0]).reshape(-1,1)
         self.dt = dt
         self.ax = ax
         
