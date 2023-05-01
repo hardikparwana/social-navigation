@@ -16,18 +16,19 @@ class single_integrator_square:
         
         self.type = 'SingleIntegrator2D'        
         
-        X0 = pos.reshape(-1,1)
-        self.X = X0
+        self.X0 = pos.reshape(-1,1)
+        self.X = np.copy(self.X0)
         self.U = np.array([0,0]).reshape(-1,1)
         self.dt = dt
         self.ax = ax
         
         self.width = 0.4
         self.height = 0.4
+        self.A, self.b = self.initial_polytopic_location()
         
         # Plot handles
-        self.body = ax.scatter([],[],c='g',alpha=0.5,s=10)
-        self.rect = Rectangle((self.X[0,0],self.X[1,0]),self.width,self.height,linewidth = 1, edgecolor='k',facecolor='k')
+        self.body = ax.scatter([],[],c='g',alpha=0.0,s=70)
+        self.rect = Rectangle((self.X[0,0]-self.width/2,self.X[1,0]-self.height/2),self.width,self.height,linewidth = 1, edgecolor='k',facecolor='k')
         ax.add_patch(self.rect)
         self.render_plot()
         self.Xs = np.copy(self.X)
@@ -51,13 +52,38 @@ class single_integrator_square:
     def render_plot(self):
         x = np.array([self.X[0,0],self.X[1,0]])
         self.body.set_offsets([x[0],x[1]])
-        self.rect.set_xy( (self.X[0,0], self.X[1,0]) )
+        self.rect.set_xy( (self.X[0,0]-self.width/2, self.X[1,0]-self.height/2) )
             
-    def polytopic_location(self):
-        x = np.array([self.X[0,0],self.X[1,0]])
-        points = np.array( [x[0]-self.width/2,x[1]-self.height/2], [x[0]+self.width/2,x[1]-self.height/2], [x[0]+self.width/2,x[1]+self.height/2], [x[0]-self.width/2,x[1]+self.height/2]  )
+    def initial_polytopic_location(self):
+        x = np.array([self.X0[0,0],self.X0[1,0]])
+        points = np.array( [ [x[0]-self.width/2,x[1]-self.height/2], [x[0]+self.width/2,x[1]-self.height/2], [x[0]+self.width/2,x[1]+self.height/2], [x[0]-self.width/2,x[1]+self.height/2] ] )
         hull = pt.qhull(points)
         return hull.A, hull.b.reshape(-1,1)
+    
+    def polytopic_location(self):
+        Rot = np.array([
+            [1.0, 0.0],
+            [0.0, 1.0]
+            ])
+        return self.A @ Rot.T, self.A @ Rot.T @ self.X[0:2].reshape(-1,1)+self.b
+    
+    def polytopic_location_next_state(self):
+        Rot = np.array([
+            [1.0, 0.0],
+            [0.0, 1.0]
+            ])
+        Rot_dot = np.array([
+            [0.0, 0.0],
+            [0.0, 0.0]
+            ])
+    
+        A, b = self.polytopic_location()
+        
+        b_f = np.copy(b)
+        b_g = A @ Rot.T # to be multiplied with control input
+        
+        return A, b_f, b_g*self.dt
+
         
         
         
