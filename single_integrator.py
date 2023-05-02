@@ -55,7 +55,8 @@ class single_integrator_square:
         self.rect.set_xy( (self.X[0,0]-self.width/2, self.X[1,0]-self.height/2) )
             
     def initial_polytopic_location(self):
-        x = np.array([self.X0[0,0],self.X0[1,0]])
+        # x = np.array([self.X0[0,0],self.X0[1,0]])
+        x = np.array([0,0])
         points = np.array( [ [x[0]-self.width/2,x[1]-self.height/2], [x[0]+self.width/2,x[1]-self.height/2], [x[0]+self.width/2,x[1]+self.height/2], [x[0]-self.width/2,x[1]+self.height/2] ] )
         hull = pt.qhull(points)
         return hull.A, hull.b.reshape(-1,1)
@@ -65,7 +66,8 @@ class single_integrator_square:
             [1.0, 0.0],
             [0.0, 1.0]
             ])
-        return self.A @ Rot.T, self.A @ Rot.T @ self.X[0:2].reshape(-1,1)+self.b
+        # return self.A @ Rot.T, self.A @ Rot.T @ self.X[0:2].reshape(-1,1)+self.b
+        return self.A @ Rot, self.A @ Rot @ self.X[0:2].reshape(-1,1)+self.b
     
     def polytopic_location_next_state(self):
         Rot = np.array([
