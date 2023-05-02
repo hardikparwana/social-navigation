@@ -1,7 +1,7 @@
 import numpy as np
 # import cvxpy as cp  
 import casadi as cd
-from holonomic_car import holonomic_car
+from unicycle import unicycle
 from obstacles import rectangle
 import matplotlib.pyplot as plt
 
@@ -25,7 +25,7 @@ t = 0
 tf = 8.0
 dt = 0.05
 
-robot = holonomic_car(ax, pos = np.array([0.0,0.5,np.pi/3]), dt = dt)
+robot = unicycle(ax, pos = np.array([0.0,0.5,0.0]), dt = dt)
 obs = rectangle( ax, pos = np.array([1,0.5])  )
 
 while t < tf:
@@ -60,11 +60,11 @@ while t < tf:
     lambda_o = opti.variable(1,4)
     lambda_r = opti.variable(1,4)
     alpha_cbf = opti.variable()
-    U = opti.variable(3,1)
+    U = opti.variable(2,1)
     X_next = opti.variable(3,1)
         
     # find control input
-    U_ref = np.array([0.5,-0.3, 0.1]).reshape(-1,1)
+    U_ref = np.array([0.5,-0.7]).reshape(-1,1)
     Anext, bnext_r_f, bnext_r_g = robot.polytopic_location_next_state()
     
     U_error = U - U_ref

@@ -1,12 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import PatchCollection
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Polygon
 import polytope as pt
 
-class single_integrator_square:
+class unicycle:
     
-    def __init__(self, ax, pos = np.array([0,0]), dt = 0.01):
+    def __init__(self, ax, pos = np.array([0,0,0]), dt = 0.01):
         '''
         X0: iniytial state
         dt: simulation time step
@@ -28,17 +28,18 @@ class single_integrator_square:
         
         # Plot handles
         self.body = ax.scatter([],[],c='g',alpha=0.0,s=70)
-        self.rect = Rectangle((self.X[0,0]-self.width/2,self.X[1,0]-self.height/2),self.width,self.height,linewidth = 1, edgecolor='k',facecolor='k')
-        ax.add_patch(self.rect)
+        points = np.array( [ [-self.width/2,-self.height/2], [self.width/2,-self.height/2], [self.width/2,self.height/2], [-self.width/2,self.height/2] ] )  
+        self.patch = Polygon( points, linewidth = 1, edgecolor='k',facecolor='k' )      
+        ax.add_patch(self.patch)
         self.render_plot()
         self.Xs = np.copy(self.X)
         self.Us = np.copy(self.U)
         
     def f(self):
-        return np.array([0,0]).reshape(-1,1)
+        return np.array([0,0,0]).reshape(-1,1)
     
     def g(self):
-        return np.array([ [1, 0],[0, 1] ])
+        return np.array([ [np.cos(self.X[2,0]), 0],[np.sin(self.X[2,0]), 0], [0, 1] ])
         
     def step(self,U): #Just holonomic X,T acceleration
 
@@ -48,11 +49,20 @@ class single_integrator_square:
         self.Xs = np.append(self.Xs,self.X,axis=1)
         self.Us = np.append(self.Us,self.U,axis=1)
         return self.X
-
+    
+    def rot_mat(self,theta):
+        return np.array([
+            [np.cos(theta), -np.sin(theta)],
+            [np.sin(theta), np.cos(theta)]
+            ])
     def render_plot(self):
         x = np.array([self.X[0,0],self.X[1,0]])
+        theta = self.X[2,0]
         self.body.set_offsets([x[0],x[1]])
-        self.rect.set_xy( (self.X[0,0]-self.width/2, self.X[1,0]-self.height/2) )
+        points = np.array( [ [-self.width/2,-self.height/2], [self.width/2,-self.height/2], [self.width/2,self.height/2], [-self.width/2,self.height/2] ] )
+        R = self.rot_mat(theta)
+        points = (R @ points.T).T  + x     
+        self.patch.set_xy( points )
             
     def base_polytopic_location(self):
         x = np.array([0,0])
@@ -61,10 +71,8 @@ class single_integrator_square:
         return hull.A, hull.b.reshape(-1,1)
     
     def polytopic_location(self):
-        Rot = np.array([
-            [1.0, 0.0],
-            [0.0, 1.0]
-            ])
+        theta = self.X[2,0]
+        Rot = self.rot_mat(theta)
         # return self.A @ Rot.T, self.A @ Rot.T @ self.X[0:2].reshape(-1,1)+self.b
         return self.A @ Rot, self.A @ Rot @ self.X[0:2].reshape(-1,1)+self.b
     
