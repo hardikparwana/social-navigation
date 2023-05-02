@@ -5,7 +5,7 @@ from single_integrator import single_integrator_square
 from obstacles import rectangle
 import matplotlib.pyplot as plt
 
-alpha_cbf_nominal = 0.5
+alpha_cbf_nominal = 0.9
 h_offset = 0.05
 # higher: more conservative
 # lower: less conservative
@@ -101,7 +101,7 @@ while t < tf:
 
     A_next = robot.A @ Rot
     b_next = cd.mtimes(robot.A @ Rot, X_next) + robot.b
-    lambda_bound = np.max(1, 2*h)
+    lambda_bound = max(1.0, 2*h)
     opti.subject_to( alpha_cbf >= 0 )
     opti.subject_to( alpha_cbf <= 0.99 )
     opti.subject_to(  - cd.mtimes(lambda_o, b_o) - cd.mtimes(lambda_r, b_next) >= alpha_cbf * h + h_offset )
