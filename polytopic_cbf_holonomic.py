@@ -100,8 +100,8 @@ while t < tf:
     opti.subject_to( lambda_r >= 0 )
     opti.subject_to(  X_next == robot.X + robot.f()*dt + cd.mtimes(robot.g()*dt, U) )
     
-    opti.set_initial(lambda_o,lamb_o )
-    opti.set_initial(lambda_r,lamb_r )
+    # opti.set_initial(lambda_o,lamb_o )
+    # opti.set_initial(lambda_r,lamb_r )
     
     # opti.solver('ipopt');
     option = {"verbose": False, "ipopt.print_level": 0, "print_time": 0}
