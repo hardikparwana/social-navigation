@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter
 
 alpha_cbf_nominal = 0.9
-h_offset = 0.05
+h_offset = 0.07
 # higher: more conservative
 # lower: less conservative
 
-movie_name = 'holonomic_take1.mp4'
+movie_name = 'holonomic_take2.mp4'
 
 opti = cd.Opti()
 
