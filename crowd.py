@@ -5,7 +5,7 @@ import time
 
 class crowd:
     
-    def __init__(self, ax, crowd_center = np.array([0,0]), num_people = 10, dt = 0.01, horizon = 100):
+    def __init__(self, ax, crowd_center = np.array([0,0]), num_people = 10, dt = 0.01, horizon = 100, paths_file = []):
         '''
         X0: iniytial state
         dt: simulation time step
@@ -21,21 +21,57 @@ class crowd:
         self.dt = dt
         self.horizon = horizon
         self.ax = ax
+        self.t = 0
+        self.counter = 0
         
         # Set goals for each human
         self.goals = -np.copy(self.X0)
+        
+        if paths_file != []:
+            with open(paths_file,'rb') as f:
+                self.paths = np.load(f)
+            self.X = self.paths[0,0: self.num_people], self.paths[1,0: self.num_people] + 1.0
+            
+            # Animate trajectories
+            self.body = self.ax.scatter(self.paths[0,0: self.num_people], self.paths[1,0: self.num_people],c='g',alpha=0.5,s=70)
+            self.plot_counter = 1
+        
+    # def render_plot(self):
+    #     self.body.set_offsets(self.paths[:,self.plot_counter*self.num_people: (self.plot_counter+1)*self.num_people].T)
+    #     self.plot_counter = self.plot_counter + 1
+        
+    def current_position(self, t, dt):
+        if t>=self.counter*self.dt:
+            self.counter += 1
+        counter = self.counter - 1
+        # counter = int(1.001*t/self.dt)
+        U = (self.paths[:,(counter+1)*self.num_people: (counter+2)*self.num_people] - self.paths[:,counter*self.num_people: (counter+1)*self.num_people])/self.dt
+        self.X = self.X + U * dt
+        # current_pos = self.paths[:,counter*self.num_people: (counter+1)*self.num_people] + U * (t-counter*self.dt)
+        # print(f"t:{t}, counter:{counter}, change in time: {(t-counter*self.dt)}")
+        # return current_pos
+        return np.copy(self.X)
+        
+    def render_plot(self, current_pos):# t, dt):
+        # counter = int(1.001*t/self.dt)
+        # U = self.paths[:,(counter+1)*self.num_people: (counter+2)*self.num_people] - self.paths[:,counter*self.num_people: (counter+1)*self.num_people]
+        # # U = self.paths[:,(counter+1)*self.num_people: (counter+2)*self.num_people] - self.paths[:,counter*self.num_people: (counter+1)*self.num_people]
+        # current_pos = self.paths[:,counter*self.num_people: (counter+1)*self.num_people] + U * (t-counter*self.dt)
+        self.body.set_offsets(current_pos.T)
+        # self.plot_counter = self.plot_counter + 1
+        
     
     def plan_paths(self, obstacles):
         # Use MPC to plan paths for all humans in centralized manner
         opti = cd.Opti()
         
-        X = opti.variable(2,self.num_people*self.horizon)
-        U = opti.variable(2,self.num_people*self.horizon-1)
+        X = opti.variable(2,self.num_people*(self.horizon+1))
+        U = opti.variable(2,self.num_people*self.horizon)
         
         # Initial state
         initial_state_error = X[:,0:self.num_people] -  self.X0
         
-        for i in range(self.horizon-1):
+        for i in range(self.horizon):
             
             # Dynamics
             opti.subject_to( X[:,(i+1)*self.num_people:(i+2)*self.num_people] == X[:,i*self.num_people:(i+1)*self.num_people] + U[:,i*self.num_people:(i+1)*self.num_people]*self.dt )
@@ -56,7 +92,7 @@ class crowd:
                     opti.subject_to( cd.mtimes(dist.T, dist) >= 0.3 )
                     
         # Goal location
-        final_state_error = X[:,(self.horizon-1)*self.num_people:self.horizon*self.num_people] - self.goals
+        final_state_error = X[:,(self.horizon)*self.num_people:(self.horizon+1)*self.num_people] - self.goals
         
         cost = 100*cd.norm_fro(initial_state_error)**2 + cd.norm_fro(final_state_error)**2
         opti.minimize(cost)
@@ -65,7 +101,7 @@ class crowd:
         sol = opti.solve();
         return sol.value(X)
         
-if 1:    
+if 0:    
     # Set Figure
     plt.ion()
     fig = plt.figure()
@@ -104,3 +140,11 @@ if 1:
     plt.ioff()       
         
     plt.show()
+    
+# paths.npy
+# dt = 0.5
+# tf = 10.0
+# horizon = int(tf/dt)
+# num_people = 10
+
+# paths2.npy
