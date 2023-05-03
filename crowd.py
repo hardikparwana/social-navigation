@@ -1,9 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Rectangle, Polygon
-from obstacles import rectangle
-import polytope as pt
 import casadi as cd
 import time
 
@@ -44,14 +40,13 @@ class crowd:
             # Dynamics
             opti.subject_to( X[:,(i+1)*self.num_people:(i+2)*self.num_people] == X[:,i*self.num_people:(i+1)*self.num_people] + U[:,i*self.num_people:(i+1)*self.num_people]*self.dt )
             
-            # Collision with obstacles
+            # Collision with obstacles: Incorrect. Needs to be chaanged
             # for j in range(len(obstacles)):
             #     A, b = obstacles[j].polytopic_location()
             #     opti.subject_to( cd.vec(cd.mtimes( A, X[:,i*self.num_people:(i+1)*self.num_people] )) <=  cd.vec(np.repeat(b, self.num_people, axis=1)) ) # Collision avoidance constraint
             
             for j in range(self.num_people):
                 # Input constraints
-                # opti.subject_to( cd.sum1(  cd.vec( U[:,i*self.num_people+j] * U[:,i*self.num_people+j] ) )<= 1 )  #U[:,j,i]
                 control_input = U[:,i*self.num_people+j]
                 opti.subject_to( cd.mtimes( control_input.T, control_input ) <= 2 )
                 
@@ -68,8 +63,7 @@ class crowd:
         option = {"verbose": True, "ipopt.print_level": 0, "print_time": 0}
         opti.solver("ipopt", option)
         sol = opti.solve();
-        print(f"Solved!, first bhuman: {sol.value(X[:,0])}, {sol.value(X[:,(self.horizon-1)*self.num_people])}, {self.X0[:,0]}, {self.goals[:,0]}")
-        return sol.value(X)#, sol.value(U)
+        return sol.value(X)
         
 if 1:    
     # Set Figure
