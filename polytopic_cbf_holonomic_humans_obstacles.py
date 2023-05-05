@@ -12,7 +12,7 @@ h_offset = 0.07
 # higher: more conservative
 # lower: less conservative
 
-movie_name = 'holonomic_humans_take1.mp4'
+movie_name = 'holonomic_humans_take_test.mp4'
 
 opti = cd.Opti()
 
@@ -25,9 +25,9 @@ ax.set_ylabel("Y")
 
 # Simulation Parameters
 t = 0
-tf = 10.0
+tf = 15.0
 dt = 0.05
-U_ref = np.array([-0.5,0.5, 0.0]).reshape(-1,1)
+U_ref = np.array([-0.5,0.5, 0.4]).reshape(-1,1)
 
 robot = holonomic_car(ax, pos = np.array([2.5,-2.5,0]), dt = dt)
 obstacles = []
@@ -45,7 +45,7 @@ dt_human = 0.5
 tf_human = 10.0
 horizon_human = int(tf_human/dt_human)
 num_people = 10
-humans = crowd(ax, crowd_center = np.array([0,0]), num_people = num_people, dt = dt_human, horizon = horizon_human, paths_file = 'social-navigation/paths.npy')#social-navigation/
+humans = crowd(ax, crowd_center = np.array([0,0]), num_people = num_people, dt = dt_human, horizon = horizon_human, paths_file = 'paths.npy')#social-navigation/
 
 human_frequency = int(dt_human/dt)
 human_counter = 0

@@ -15,7 +15,7 @@ class crowd:
         
         self.type = 'SingleIntegrator2D'        
         self.num_people = num_people
-        self.X0 = 20*( np.random.rand(2,num_people) - np.array([[0.5],[0.5]]) ) + crowd_center.reshape(-1,1)
+        self.X0 = 40*( np.random.rand(2,num_people) - np.array([[0.5],[0.5]]) ) + crowd_center.reshape(-1,1)
         self.X = np.copy(self.X0)
         self.U = np.zeros((2,num_people))
         self.dt = dt
@@ -41,8 +41,9 @@ class crowd:
     #     self.plot_counter = self.plot_counter + 1
         
     def current_position(self, t, dt):
-        if t>=self.counter*self.dt:
-            self.counter += 1
+        if t<=(self.horizon*self.dt):
+            if t>=self.counter*self.dt:
+                self.counter += 1
         counter = self.counter - 1
         # counter = int(1.001*t/self.dt)
         U = (self.paths[:,(counter+1)*self.num_people: (counter+2)*self.num_people] - self.paths[:,counter*self.num_people: (counter+1)*self.num_people])/self.dt
@@ -105,14 +106,14 @@ if 0:
     # Set Figure
     plt.ion()
     fig = plt.figure()
-    ax = plt.axes(xlim=(-10,10), ylim=(-10,10))
+    ax = plt.axes(xlim=(-20,20), ylim=(-20,20))
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
 
     dt = 0.5
-    tf = 10.0
+    tf = 20.0
     horizon = int(tf/dt)
-    num_people = 10
+    num_people = 20
     
     obstacles = []
     # obstacles.append( rectangle( ax, pos = np.array([1,0.5]) ) )
@@ -123,7 +124,7 @@ if 0:
     paths = humans.plan_paths(obstacles)
     
     # Save Data
-    with open('paths.npy','wb') as f:
+    with open('paths_n20_tf20_v2.npy','wb') as f:
         np.save(f, paths)
     
     # Plot trajectory

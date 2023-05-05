@@ -38,7 +38,13 @@ class holonomic_car:
     def f(self):
         return np.array([0,0,0]).reshape(-1,1)
     
+    def f(self,X): # for casadi variable X
+        return np.array([0,0,0]).reshape(-1,1)
+    
     def g(self):
+        return np.array([ [1, 0, 0],[0, 1, 0], [0, 0, 1] ])
+    
+    def g(self, X):
         return np.array([ [1, 0, 0],[0, 1, 0], [0, 0, 1] ])
         
     def step(self,U): #Just holonomic X,T acceleration
