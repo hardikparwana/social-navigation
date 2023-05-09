@@ -61,6 +61,7 @@ with writer.saving(fig, movie_name, 100):
     h_human = opti_mpc.parameter(num_people)
     h_obstacles = opti_mpc.parameter(len(obstacles))
     robot_current_state = opti_mpc.parameter( robot.X.shape[0],1 )
+    robot_input_ref = opti_mpc.parameter(robot.U.shape[0], robot.U.shape[1])
     
     # Variables to solve for
     robot_states = opti_mpc.variable(robot.X.shape[0], mpc_horizon+1)
@@ -122,7 +123,7 @@ with writer.saving(fig, movie_name, 100):
             opti_mpc.subject_to(  robot_states[:,k+1] == robot_states[:,k] + robot.f_casadi(robot_states[:,k])*dt + cd.mtimes(robot.g_casadi(robot_states[:,k])*dt, robot_inputs[:,k]) )
         
             # current state-input contribution to objective ####
-            U_error = robot_inputs[:,k] - U_ref 
+            U_error = robot_inputs[:,k] - robot_input_ref 
             objective += 10 * cd.mtimes( U_error.T, U_error )
             
     # find control input ###############################          
@@ -183,9 +184,18 @@ with writer.saving(fig, movie_name, 100):
         opti_mpc.set_value(robot_current_state, robot.X)
         opti_mpc.set_value(humans_state, human_future_positions)
         opti_mpc.set_value(h_human, h_curr_humans)
+        opti_mpc.set_value(robot_input_ref, U_ref)
         # opti_mpc.set_value(h_obstacles, h_curr_obstacles)
     
-        mpc_sol = opti_mpc.solve();
+        # mpc_sol = opti_mpc.solve();
+        try:
+            mpc_sol = opti_mpc.solve();
+        except Exception as e:
+            print(e)
+            u_temp = np.array([[100],[100],[0]])
+            opti_mpc.set_value(robot_input_ref, u_temp)
+            opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+            mpc_sol = opti_mpc.solve();
         
         robot.step(mpc_sol.value(robot_inputs[:,0]))
         print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans) }")
@@ -207,5 +217,8 @@ with writer.saving(fig, movie_name, 100):
     
     
 
-
+# lessons
+#1. works with d = 0.5
+#2. with d = 0.1 runs into local infeasibility which can be solved by changing initial guess and U_ref. However
+#then jumps back lol
 
