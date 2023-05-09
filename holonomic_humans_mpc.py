@@ -212,6 +212,13 @@ with writer.saving(fig, movie_name, 100):
     
     
     
+# Lessons learned
+# 1. initial stata may end up violating by a small negative number si ignore that check.
+# 2. also when computing current h barriers, have them always > 0 otherwise if they are even small negative, it allows barriers to get more negative
+# 3. NLP may show local infeasibility. this can be because
+#     1. initial state violates constraints
+#     2. the initial control input guess is very bad leading to solver infeasibility
+#     3. the objective function reference might be bad
     
     
 
