@@ -27,7 +27,7 @@ tf = 15.0
 dt = 0.05
 U_ref = np.array([-0.5,0.5, 0.0]).reshape(-1,1)
 d_min = 1.0#0.5
-mpc_horizon = 1
+mpc_horizon = 2
 
 robot = holonomic_car(ax, pos = np.array([2.5,-1.0,0]), dt = dt)#2.5,-2.5,0
 obstacles = [1]
@@ -61,6 +61,7 @@ with writer.saving(fig, movie_name, 100):
     h_human = opti_mpc.parameter(num_people)
     h_obstacles = opti_mpc.parameter(len(obstacles))
     robot_current_state = opti_mpc.parameter( robot.X.shape[0],1 )
+    robot_input_ref = opti_mpc.parameter(robot.U.shape[0], robot.U.shape[1])
     
     # Variables to solve for
     robot_states = opti_mpc.variable(robot.X.shape[0], mpc_horizon+1)
@@ -79,15 +80,16 @@ with writer.saving(fig, movie_name, 100):
     
     ## Time Loop
     objective  = 0.0
-    for k in range(mpc_horizon): # For loop over time horizon
+    for k in range(mpc_horizon+1): # For loop over time horizon
         
         ################ Collision avoidance with humans
         human_states_horizon = humans_state[0:2, k*num_people:(k+1)*num_people]
         for i in range(num_people):
             dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account               
             h = cd.mtimes(dist.T , dist) - d_min**2
-            # opti_mpc.subject_to( h >= alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
-            opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
+            if k>0:
+                opti_mpc.subject_to( h >= alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
+                # opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
         
         ################ Collision avoidance with polytopic obstacles            
         lambda_o = opti_mpc.variable(len(obstacles),4)
@@ -112,17 +114,18 @@ with writer.saving(fig, movie_name, 100):
         #     opti_mpc.subject_to( lambda_o[i,:] >= 0 ) 
         #     opti_mpc.subject_to( lambda_r[i,:] >= 0 )
             
-        ################ Dynamics ##########################
-        opti_mpc.subject_to(  robot_states[:,k+1] == robot_states[:,k] + robot.f_casadi(robot_states[:,k])*dt + cd.mtimes(robot.g_casadi(robot_states[:,k])*dt, robot_inputs[:,k]) )
-        
-        # current state-input contribution to objective ####
-        U_error = robot_inputs[:,k] - U_ref 
-        objective += 10 * cd.mtimes( U_error.T, U_error )
+        if (k < mpc_horizon):
+            ################ Dynamics ##########################
+            opti_mpc.subject_to(  robot_states[:,k+1] == robot_states[:,k] + robot.f_casadi(robot_states[:,k])*dt + cd.mtimes(robot.g_casadi(robot_states[:,k])*dt, robot_inputs[:,k]) )
+            
+            # current state-input contribution to objective ####
+            U_error = robot_inputs[:,k] - robot_input_ref 
+            objective += 10 * cd.mtimes( U_error.T, U_error )
             
     # find control input ###############################          
     alpha_obstacle_diff = alpha_obstacle-alpha_cbf_nominal*np.ones(len(obstacles))
     alpha_humans_diff = alpha_human-alpha_cbf_nominal*np.ones(num_people)
-    objective += 100.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) + cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )                
+    objective += 10.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) + cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )                
     opti_mpc.minimize(objective)
         
     option_mpc = {"verbose": False, "ipopt.print_level": 0, "print_time": 0}
@@ -170,17 +173,26 @@ with writer.saving(fig, movie_name, 100):
         for i in range(num_people):
             dist = robot.X[0:2] - human_positions[0:2,i].reshape(-1,1)                 
             h_curr_humans[i] = (dist.T @ dist - d_min**2)[0,0]
+            h_curr_humans[i] = max(h_curr_humans[i], 0.01) # to account for numerical issues
         
         # Find control input
         opti_mpc.set_value(robot_current_state, robot.X)
         opti_mpc.set_value(humans_state, human_future_positions)
         opti_mpc.set_value(h_human, h_curr_humans)
+        opti_mpc.set_value(robot_input_ref, U_ref)
         # opti_mpc.set_value(h_obstacles, h_curr_obstacles)
     
-        mpc_sol = opti_mpc.solve();
+        try:
+            mpc_sol = opti_mpc.solve();
+        except Exception as e:
+            print(e)
+            u_temp = np.array([[100],[100],[0]])
+            opti_mpc.set_value(robot_input_ref, u_temp)
+            opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+            mpc_sol = opti_mpc.solve();
         
         robot.step(mpc_sol.value(robot_inputs[:,0]))
-        print(f"U: {robot.U.T}, human_dist:{ np.min(h_curr_humans) }")
+        print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans) }")
         robot.render_plot()
         fig.canvas.draw()
         fig.canvas.flush_events()
