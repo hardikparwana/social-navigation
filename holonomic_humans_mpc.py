@@ -12,7 +12,7 @@ h_offset = 0.07#0.07
 # higher: more conservative
 # lower: less conservative
 
-movie_name = 'holonomic_humans_take_test.mp4'
+movie_name = 'social-navigation/videos/holonomic_humans_take_test.mp4'
 
 # Set Figure
 plt.ion()
