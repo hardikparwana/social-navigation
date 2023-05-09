@@ -103,6 +103,7 @@ with writer.saving(fig, movie_name, 100):
         A_r = robot.A @ Rot
         b_r = cd.mtimes(cd.mtimes(robot.A, Rot), robot_states[0:2,k]) + robot.b
     
+    
         # Form polytopic CBF constraints
         # for i in range(len(obstacles)):
         #     A_o, b_o = obstacles[i].polytopic_location()
