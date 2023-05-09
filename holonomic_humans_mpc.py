@@ -27,7 +27,7 @@ tf = 15.0
 dt = 0.05
 U_ref = np.array([-0.5,0.5, 0.0]).reshape(-1,1)
 d_human = 0.5#0.5
-mpc_horizon = 5
+mpc_horizon = 2
 
 robot = holonomic_car(ax, pos = np.array([2.5,-1.5,0]), dt = dt)#2.5,-2.5,0
 obstacles = [] #[1]
@@ -82,21 +82,29 @@ with writer.saving(fig, movie_name, 100):
     objective  = 0.0
     for k in range(mpc_horizon+1): # +1 For loop over time horizon
         
-        ################ Collision avoidance with humans
-        human_states_horizon = humans_state[0:2, k*num_people:(k+1)*num_people]
-        for i in range(num_people):
-            dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account               
-            h = cd.mtimes(dist.T , dist) - d_human**2
-            if k>0:
-                opti_mpc.subject_to( h >= alpha_human[i]**    k * h_human[i] ) # CBF constraint # h_human is based on current state
-                opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
+        ################ Dynamics ##########################
+        if (k < mpc_horizon):
+            opti_mpc.subject_to(  robot_states[:,k+1] == robot_states[:,k] + robot.f_casadi(robot_states[:,k])*dt + cd.mtimes(robot.g_casadi(robot_states[:,k])*dt, robot_inputs[:,k]) )
+            
+            # current state-input contribution to objective ####
+            U_error = robot_inputs[:,k] - robot_input_ref 
+            objective += 10 * cd.mtimes( U_error.T, U_error )
         
-        ################ Collision avoidance with polytopic obstacles          
-        lambda_o = opti_mpc.variable(len(obstacles),4)
-        lambda_r = opti_mpc.variable(len(obstacles),4)
-        
-        # Robot Polytopic location at state at time k
-        if (k>0):
+        if (k > 0):
+            ################ Collision avoidance with humans
+            human_states_horizon = humans_state[0:2, k*num_people:(k+1)*num_people]
+            for i in range(num_people):
+                dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account               
+                h = cd.mtimes(dist.T , dist) - d_human**2
+                if k>0:
+                    opti_mpc.subject_to( h >= alpha_human[i]**    k * h_human[i] ) # CBF constraint # h_human is based on current state
+                    opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
+            
+            ################ Collision avoidance with polytopic obstacles          
+            lambda_o = opti_mpc.variable(len(obstacles),4)
+            lambda_r = opti_mpc.variable(len(obstacles),4)
+            
+            # Robot Polytopic location at state at time k
             Rot = cd.hcat( [  
                 cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
                 cd.vcat( [-cd.sin(robot_states[2,k]), cd.cos(robot_states[2,k]) ] )
@@ -116,13 +124,7 @@ with writer.saving(fig, movie_name, 100):
                 opti_mpc.subject_to( lambda_o[i,:] >= 0 ) 
                 opti_mpc.subject_to( lambda_r[i,:] >= 0 )
             
-        if (k < mpc_horizon):
-            ################ Dynamics ##########################
-            opti_mpc.subject_to(  robot_states[:,k+1] == robot_states[:,k] + robot.f_casadi(robot_states[:,k])*dt + cd.mtimes(robot.g_casadi(robot_states[:,k])*dt, robot_inputs[:,k]) )
-            
-            # current state-input contribution to objective ####
-            U_error = robot_inputs[:,k] - robot_input_ref 
-            objective += 10 * cd.mtimes( U_error.T, U_error )
+        
             
     # find control input ###############################          
     alpha_obstacle_diff = alpha_obstacle-alpha_cbf_nominal*np.ones(len(obstacles))
