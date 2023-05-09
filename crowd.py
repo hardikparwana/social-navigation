@@ -30,16 +30,32 @@ class crowd:
         if paths_file != []:
             with open(paths_file,'rb') as f:
                 self.paths = np.load(f)
-            self.X = self.paths[0,0: self.num_people], self.paths[1,0: self.num_people] + 1.0
+            self.X = self.paths[0,0: self.num_people], self.paths[1,0: self.num_people] + 1.0 # 1.0
             
             # Animate trajectories
-            self.body = self.ax.scatter(self.paths[0,0: self.num_people], self.paths[1,0: self.num_people],c='g',alpha=0.5,s=70)
+            self.body = self.ax.scatter(self.paths[0,0: self.num_people], self.paths[1,0: self.num_people],c='g',alpha=0.5,s=50)#50
             self.plot_counter = 1
         
     # def render_plot(self):
     #     self.body.set_offsets(self.paths[:,self.plot_counter*self.num_people: (self.plot_counter+1)*self.num_people].T)
     #     self.plot_counter = self.plot_counter + 1
         
+    def get_future_states(self,t,dt,mpc_horizon):
+        states = np.copy(self.X)
+        
+        t_temp = t
+        counter_temp = self.counter
+        while t_temp < (t + dt*mpc_horizon):
+            if t_temp<=(counter_temp*self.dt):
+                if t_temp>=counter_temp*self.dt:
+                    counter_temp += 1
+            counter = counter_temp - 1
+            t_temp += dt
+            U = (self.paths[:,(counter+1)*self.num_people: (counter+2)*self.num_people] - self.paths[:,counter*self.num_people: (counter+1)*self.num_people])/self.dt
+            states = np.append(states, states[:,-self.num_people:] + U * dt, axis=1)
+            
+        return states[:,0:self.num_people*(mpc_horizon+1)]
+    
     def current_position(self, t, dt):
         if t<=(self.horizon*self.dt):
             if t>=self.counter*self.dt:

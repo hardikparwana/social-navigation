@@ -7,12 +7,12 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 
-alpha_cbf_nominal = 0.2
-h_offset = 0.07
+alpha_cbf_nominal = 0.2 # 0.2, 0.05 for rotation
+h_offset = 0.05
 # higher: more conservative
 # lower: less conservative
 
-movie_name = 'holonomic_humans_take_test.mp4'
+movie_name = 'holonomic_humans_10people_test.mp4'
 
 opti = cd.Opti()
 
@@ -25,11 +25,13 @@ ax.set_ylabel("Y")
 
 # Simulation Parameters
 t = 0
-tf = 15.0
+tf = 13.0
 dt = 0.05
-U_ref = np.array([-0.5,0.5, 0.4]).reshape(-1,1)
+d_human = 0.2#0.5
+U_ref = np.array([-0.5,0.5, 0.0]).reshape(-1,1) # 0.5
 
-robot = holonomic_car(ax, pos = np.array([2.5,-2.5,0]), dt = dt)
+# robot = holonomic_car(ax, pos = np.array([2.5,-2.5,0]), dt = dt)
+robot = holonomic_car(ax, pos = np.array([1.5,-1.5,0]), dt = dt)
 obstacles = []
 # h = [0, 0] # barrier functions
 # obstacles.append( rectangle( ax, pos = np.array([0,0.5]) ) )
@@ -96,7 +98,7 @@ with writer.saving(fig, movie_name, 100):
             objective += 100 * ( alpha_human[i]-alpha_cbf_nominal )**2
         
         opti.minimize(objective)
-        
+        # opti.subject_to( cd.mtimes(U[0:2].T, U[0:2]) <= 2.0 )
         # Next state polytopic location
         Rot = cd.hcat(
             [
@@ -137,9 +139,9 @@ with writer.saving(fig, movie_name, 100):
             # opti.subject_to( cd.mtimes(dist.T, dist) >= 0.3 )
             
             # CBF constraint
-            h_curr = np.linalg.norm(robot.X[0:2] - human_positions[:,i])**2 - 0.5**2
+            h_curr = np.linalg.norm(robot.X[0:2] - human_positions[:,i])**2 - d_human**2
             print(f"i:{i}, h:{h_curr}")
-            h_next = cd.mtimes(dist.T , dist) - 0.5**2
+            h_next = cd.mtimes(dist.T , dist) - d_human**2
             opti.subject_to( h_next >= alpha_human[i] * h )
             opti.subject_to( alpha_human[i] >= 0 )
             
@@ -155,7 +157,7 @@ with writer.saving(fig, movie_name, 100):
         # propagate dynamics
         robot.step(sol.value(U))
         robot.render_plot()
-        fig.canvas.draw()
+        # fig.canvas.draw()
         fig.canvas.flush_events()
         writer.grab_frame()
         
