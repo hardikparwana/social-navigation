@@ -8,7 +8,7 @@ from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 
 alpha_cbf_nominal = 0.2
-h_offset = 0.0#0.07
+h_offset = 0.07#0.07
 # higher: more conservative
 # lower: less conservative
 
@@ -26,20 +26,20 @@ t = 0
 tf = 15.0
 dt = 0.05
 U_ref = np.array([-0.5,0.5, 0.0]).reshape(-1,1)
-d_min = 1.0#0.5
-mpc_horizon = 2
+d_human = 0.5#0.5
+mpc_horizon = 5
 
-robot = holonomic_car(ax, pos = np.array([2.5,-1.0,0]), dt = dt)#2.5,-2.5,0
-obstacles = [1]
+robot = holonomic_car(ax, pos = np.array([2.5,-1.5,0]), dt = dt)#2.5,-2.5,0
+obstacles = [] #[1]
 # h = [0, 0] # barrier functions
 # obstacles.append( rectangle( ax, pos = np.array([0,0.5]) ) )
 # obstacles.append( rectangle( ax, pos = np.array([0,-1.5]) ) )
 
 h_curr_obstacles = [0, 0, 0, 0] # barrier functions
-# obstacles.append( rectangle( ax, pos = np.array([0,0.5]), width = 2.5 ) )        
-# obstacles.append( rectangle( ax, pos = np.array([-0.75,-2.0]), width = 4.0 ) )
-# obstacles.append( rectangle( ax, pos = np.array([-1.28,2.0]), height = 4.0 ) )
-# obstacles.append( rectangle( ax, pos = np.array([-3.2,1.0]), height = 7.0 ) )
+obstacles.append( rectangle( ax, pos = np.array([0,0.5]), width = 2.5 ) )        
+obstacles.append( rectangle( ax, pos = np.array([-0.75,-2.0]), width = 4.0 ) )
+obstacles.append( rectangle( ax, pos = np.array([-1.28,2.0]), height = 4.0 ) )
+obstacles.append( rectangle( ax, pos = np.array([-3.2,1.0]), height = 7.0 ) )
 # plt.show()
 dt_human = 0.5
 tf_human = 10.0
@@ -80,40 +80,41 @@ with writer.saving(fig, movie_name, 100):
     
     ## Time Loop
     objective  = 0.0
-    for k in range(mpc_horizon+1): # For loop over time horizon
+    for k in range(mpc_horizon+1): # +1 For loop over time horizon
         
         ################ Collision avoidance with humans
         human_states_horizon = humans_state[0:2, k*num_people:(k+1)*num_people]
         for i in range(num_people):
             dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account               
-            h = cd.mtimes(dist.T , dist) - d_min**2
+            h = cd.mtimes(dist.T , dist) - d_human**2
             if k>0:
-                opti_mpc.subject_to( h >= alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
-                # opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
+                opti_mpc.subject_to( h >= alpha_human[i]**    k * h_human[i] ) # CBF constraint # h_human is based on current state
+                opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
         
-        ################ Collision avoidance with polytopic obstacles            
+        ################ Collision avoidance with polytopic obstacles          
         lambda_o = opti_mpc.variable(len(obstacles),4)
         lambda_r = opti_mpc.variable(len(obstacles),4)
         
         # Robot Polytopic location at state at time k
-        Rot = cd.hcat( [  
-               cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
-               cd.vcat( [-cd.sin(robot_states[2,k]), cd.cos(robot_states[2,k]) ] )
-              ] )        
-        A_r = robot.A @ Rot
-        b_r = cd.mtimes(cd.mtimes(robot.A, Rot), robot_states[0:2,k]) + robot.b
-    
-    
-        # Form polytopic CBF constraints
-        # for i in range(len(obstacles)):
-        #     A_o, b_o = obstacles[i].polytopic_location()
-        #     lambda_bound = cd.fmax(1.0, 2*h_obstacles[i])                
-        #     opti_mpc.subject_to(  - cd.mtimes(lambda_o[i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) >= alpha_obstacle[i]**k * h_obstacles[i] + h_offset )
-        #     opti_mpc.subject_to(  cd.mtimes(lambda_o[i,:], A_o) + cd.mtimes(lambda_r[i,:], A_r) == 0  )
-        #     temp = cd.mtimes( lambda_o[i,:], A_o )
-        #     opti_mpc.subject_to(  cd.mtimes( temp, temp.T ) <= lambda_bound  )
-        #     opti_mpc.subject_to( lambda_o[i,:] >= 0 ) 
-        #     opti_mpc.subject_to( lambda_r[i,:] >= 0 )
+        if (k>0):
+            Rot = cd.hcat( [  
+                cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
+                cd.vcat( [-cd.sin(robot_states[2,k]), cd.cos(robot_states[2,k]) ] )
+                ] )        
+            A_r = robot.A @ Rot
+            b_r = cd.mtimes(cd.mtimes(robot.A, Rot), robot_states[0:2,k]) + robot.b
+        
+        
+            # Form polytopic CBF constraints
+            for i in range(len(obstacles)):
+                A_o, b_o = obstacles[i].polytopic_location()
+                lambda_bound = cd.fmax(1.0, 2*h_obstacles[i])                
+                opti_mpc.subject_to(  - cd.mtimes(lambda_o[i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) >= alpha_obstacle[i]**k * h_obstacles[i] + h_offset )
+                opti_mpc.subject_to(  cd.mtimes(lambda_o[i,:], A_o) + cd.mtimes(lambda_r[i,:], A_r) == 0  )
+                temp = cd.mtimes( lambda_o[i,:], A_o )
+                opti_mpc.subject_to(  cd.mtimes( temp, temp.T ) <= lambda_bound  )
+                opti_mpc.subject_to( lambda_o[i,:] >= 0 ) 
+                opti_mpc.subject_to( lambda_r[i,:] >= 0 )
             
         if (k < mpc_horizon):
             ################ Dynamics ##########################
@@ -164,16 +165,17 @@ with writer.saving(fig, movie_name, 100):
         human_future_positions = humans.get_future_states(t,dt,mpc_horizon)
  
         # Find barrier function value first
-        # for i in range(len(obstacles)):
-        #     A_r_temp, b_r_temp = robot.polytopic_location()
-        #     A_o_temp, b_o_temp = obstacles[i].polytopic_location()
-        #     opti_barrier.set_value( A_r_barrier, A_r_temp ); opti_barrier.set_value( b_r_barrier, b_r_temp ); opti_barrier.set_value( A_o_barrier, A_o_temp ); opti_barrier.set_value( b_o_barrier, b_o_temp )
-        #     opt_sol = opti_barrier.solve()
-        #     h_curr_obstacles[i] = opt_sol.value(cost_barrier) 
+        for i in range(len(obstacles)):
+            A_r_temp, b_r_temp = robot.polytopic_location()
+            A_o_temp, b_o_temp = obstacles[i].polytopic_location()
+            opti_barrier.set_value( A_r_barrier, A_r_temp ); opti_barrier.set_value( b_r_barrier, b_r_temp ); opti_barrier.set_value( A_o_barrier, A_o_temp ); opti_barrier.set_value( b_o_barrier, b_o_temp )
+            opt_sol = opti_barrier.solve()
+            h_curr_obstacles[i] = opt_sol.value(cost_barrier) 
+            h_curr_obstacles[i] = max( h_curr_obstacles[i], 0.01 )
             
         for i in range(num_people):
             dist = robot.X[0:2] - human_positions[0:2,i].reshape(-1,1)                 
-            h_curr_humans[i] = (dist.T @ dist - d_min**2)[0,0]
+            h_curr_humans[i] = (dist.T @ dist - d_human**2)[0,0]
             h_curr_humans[i] = max(h_curr_humans[i], 0.01) # to account for numerical issues
         
         # Find control input
@@ -181,19 +183,20 @@ with writer.saving(fig, movie_name, 100):
         opti_mpc.set_value(humans_state, human_future_positions)
         opti_mpc.set_value(h_human, h_curr_humans)
         opti_mpc.set_value(robot_input_ref, U_ref)
-        # opti_mpc.set_value(h_obstacles, h_curr_obstacles)
+        opti_mpc.set_value(h_obstacles, h_curr_obstacles)
     
-        try:
-            mpc_sol = opti_mpc.solve();
-        except Exception as e:
-            print(e)
-            u_temp = np.array([[100],[100],[0]])
-            opti_mpc.set_value(robot_input_ref, u_temp)
-            opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
-            mpc_sol = opti_mpc.solve();
+        mpc_sol = opti_mpc.solve();
+        # try:
+        #     mpc_sol = opti_mpc.solve();
+        # except Exception as e:
+        #     print(e)
+        #     u_temp = np.array([[100],[100],[0]])
+        #     opti_mpc.set_value(robot_input_ref, u_temp)
+        #     opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+        #     mpc_sol = opti_mpc.solve();
         
         robot.step(mpc_sol.value(robot_inputs[:,0]))
-        print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans) }")
+        print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans)}, obs_dist: {np.min(h_curr_obstacles)} alpha_human:{mpc_sol.value(alpha_human)}")
         robot.render_plot()
         fig.canvas.draw()
         fig.canvas.flush_events()
