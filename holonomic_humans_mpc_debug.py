@@ -70,9 +70,9 @@ with writer.saving(fig, movie_name, 100):
     alpha_human = opti_mpc.variable(num_people)
     
     # alpha constraints
-    opti_mpc.subject_to( alpha_human >= np.zeros(num_people) )
+    opti_mpc.subject_to( alpha_human >= 0.01*np.ones(num_people) )
     opti_mpc.subject_to( alpha_human <= 0.99*np.ones(num_people) )
-    opti_mpc.subject_to( alpha_obstacle >= np.zeros(len(obstacles)) )
+    opti_mpc.subject_to( alpha_obstacle >= 0.01*np.ones(len(obstacles)) )
     opti_mpc.subject_to( alpha_obstacle <= 0.99*np.ones(len(obstacles)) )
         
     ## Initial state constraint 
@@ -131,8 +131,8 @@ with writer.saving(fig, movie_name, 100):
     alpha_humans_diff = alpha_human-alpha_cbf_nominal*np.ones(num_people)
     objective += 10.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) + cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )                
     opti_mpc.minimize(objective)
-        
-    option_mpc = {"verbose": False, "ipopt.print_level": 0, "print_time": 0}
+    # cd.print_options()
+    option_mpc = {"verbose": False, "ipopt.print_level": 0, "print_time": 0}#, "atol": 1e-10 }
     opti_mpc.solver("ipopt", option_mpc)
         
         ############################################################################################
@@ -186,7 +186,7 @@ with writer.saving(fig, movie_name, 100):
         opti_mpc.set_value(h_human, h_curr_humans)
         opti_mpc.set_value(robot_input_ref, U_ref)
         # opti_mpc.set_value(h_obstacles, h_curr_obstacles)
-    
+
         # mpc_sol = opti_mpc.solve();
         try:
             mpc_sol = opti_mpc.solve();
@@ -196,6 +196,9 @@ with writer.saving(fig, movie_name, 100):
             opti_mpc.set_value(robot_input_ref, u_temp)
             opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
             mpc_sol = opti_mpc.solve();
+        
+        if np.linalg.norm( mpc_sol.value(robot_inputs[:,0]) ) > 50 :
+            print(f"Input very large")
         
         robot.step(mpc_sol.value(robot_inputs[:,0]))
         print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans) }")

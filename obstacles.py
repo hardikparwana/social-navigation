@@ -37,8 +37,8 @@ class rectangle:
 
 class circle:
 
-    def __init__(self,x,y,radius,ax,id):
-        self.X = np.array([x,y]).reshape(-1,1)
+    def __init__(self, ax, pos = np.array([0,0]),radius = 1.0):
+        self.X = pos.reshape(-1,1)
         self.radius = radius
         self.id = id
         self.type = 'circle'

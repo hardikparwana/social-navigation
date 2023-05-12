@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from obstacles import rectangle, circle
 import casadi as cd
 import time
 
@@ -16,6 +17,11 @@ class crowd:
         self.type = 'SingleIntegrator2D'        
         self.num_people = num_people
         self.X0 = 40*( np.random.rand(2,num_people) - np.array([[0.5],[0.5]]) ) + crowd_center.reshape(-1,1)
+        for i in range(num_people):
+            if self.X0[0,i] < 0:
+                self.X0[0,i] = np.clip( self.X0[0,i], -20, -5 )
+            else:
+                self.X0[0,i] = np.clip( self.X0[0,i], 5, 20 )
         self.X = np.copy(self.X0)
         self.U = np.zeros((2,num_people))
         self.dt = dt
@@ -35,6 +41,19 @@ class crowd:
             # Animate trajectories
             self.body = self.ax.scatter(self.paths[0,0: self.num_people], self.paths[1,0: self.num_people],c='g',alpha=0.5,s=50)#50
             self.plot_counter = 1
+            
+        self.distance_to_polytope = cd.Opti()
+        self.A = self.distance_to_polytope.parameter(4,2)
+        self.b = self.distance_to_polytope.parameter(4,1)
+        self.y = self.distance_to_polytope.variable(2,1)
+        self.curr_x = self.distance_to_polytope.parameter(2,1)
+        dist = self.y - self.curr_x
+        self.distance_to_polytope.minimize( cd.mtimes(dist.T, dist) )
+        self.distance_to_polytope.subject_to( cd.mtimes( self.A, self.y ) <= self.b )
+        option = {"verbose": False, "ipopt.print_level": 0, "print_time": 0}
+        self.distance_to_polytope.solver("ipopt", option)
+        
+        
         
     # def render_plot(self):
     #     self.body.set_offsets(self.paths[:,self.plot_counter*self.num_people: (self.plot_counter+1)*self.num_people].T)
@@ -93,11 +112,6 @@ class crowd:
             # Dynamics
             opti.subject_to( X[:,(i+1)*self.num_people:(i+2)*self.num_people] == X[:,i*self.num_people:(i+1)*self.num_people] + U[:,i*self.num_people:(i+1)*self.num_people]*self.dt )
             
-            # Collision with obstacles: Incorrect. Needs to be chaanged
-            # for j in range(len(obstacles)):
-            #     A, b = obstacles[j].polytopic_location()
-            #     opti.subject_to( cd.vec(cd.mtimes( A, X[:,i*self.num_people:(i+1)*self.num_people] )) <=  cd.vec(np.repeat(b, self.num_people, axis=1)) ) # Collision avoidance constraint
-            
             for j in range(self.num_people):
                 # Input constraints
                 control_input = U[:,i*self.num_people+j]
@@ -117,8 +131,83 @@ class crowd:
         opti.solver("ipopt", option)
         sol = opti.solve();
         return sol.value(X)
+    
+    def attractive_potential(self, x1, x2):
+        k = 10
+        potential = np.linalg.norm(x1-x2)**2
+        force = - 2 * (x1 - x2)
+        return k * force
+    
+    def repulsive_potential(self,x1, x2):
+        k = 20
+        min_dist = 0.5
         
-if 0:    
+        dist_thr = 3.0
+        dist = np.linalg.norm(x1-x2) - min_dist
+        if dist < dist_thr:
+            potential = ( 1/dist - 1/dist_thr )**2
+            force =  ( 1/dist - 1/dist_thr ) / dist**2 * 2* (x1 - x2)
+        else:
+            potential = 0;
+            force = 0
+        
+        if (dist < min_dist):
+            print(f"Violated, dist:{dist}")
+            # exit()
+        return k * force        
+    
+    def repulsive_potential_obstacle_circle(self,x1, x2, radius):
+        k = 20
+        min_dist = 0.2 + radius
+        dist_thr = 5.0
+        dist = np.linalg.norm(x1-x2) - min_dist
+        if dist < dist_thr:
+            potential = ( 1/dist - 1/dist_thr )**2
+            force = ( 1/dist - 1/min_dist ) / dist**2 * 2* (x1 - x2)
+        else:
+            potential = 0
+            force = 0
+
+        if (dist <= 0.01):
+            print(f"Violated, dist:{dist}")
+
+        return k * force        
+    
+    def repulsive_potential_obstacle_rectangle(self, x1, A, b):
+        self.distance_to_polytope.set_value( self.A, A )
+        self.distance_to_polytope.set_value( self.b, b )
+        self.distance_to_polytope.set_value( self.curr_x, x1 )
+        self.distance_to_polytope.set_value( self.A, A )
+        opt_sol = self.distance_to_polytope.solve()
+        return self.repulsive_potential(x1, opt_sol.value(self.y).reshape(-1,1))
+    
+    def plan_paths_potential_field(self, obstacles):
+        t = 0
+        paths = np.copy(self.X)
+        while (t < self.horizon):
+            for i in range( num_people ):
+                force = 0
+                # attractive potential
+                force += self.attractive_potential( self.X[:,i].reshape(-1,1), self.goals[:,i].reshape(-1,1) )
+                
+                # Collision avoidance with other people
+                for j in range(num_people):    
+                    if j==i:
+                        continue
+                    # print("human")           
+                    force += self.repulsive_potential( self.X[:,i].reshape(-1,1), self.X[:,j].reshape(-1,1) )
+                for j in range(len(obstacles)):
+                    # print("obs")
+                    if obstacles[j].type == 'rectangle':
+                        force += self.repulsive_potential_obstacle_rectangle( self.X[:,i].reshape(-1,1), obstacles[j].A, obstacles[j].b )
+                    elif obstacles[j].type == 'circle':
+                        force += self.repulsive_potential_obstacle_circle( self.X[:,i].reshape(-1,1), obstacles[j].X, obstacles[j].radius )
+                self.U[:,i] = (self.U[:,i] + np.clip( force, -1.0, 1.0  )[:,0])/2
+            self.X = self.X  + self.U * self.dt
+            paths = np.append(paths, self.X, axis=1)        
+            t = t + 1
+        return paths
+if 1:    
     # Set Figure
     plt.ion()
     fig = plt.figure()
@@ -126,22 +215,24 @@ if 0:
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
 
-    dt = 0.5
-    tf = 20.0
+    dt = 0.2
+    tf = 40.0#20.0
     horizon = int(tf/dt)
-    num_people = 20
+    num_people = 10#20
     
     obstacles = []
-    # obstacles.append( rectangle( ax, pos = np.array([1,0.5]) ) )
+    obstacles.append( rectangle( ax, pos = np.array([0,0.0]), width = 5.0, height = 5.0 ) )
+    obstacles.append( circle( ax, pos = np.array([1.0,-1.0]), radius = 3.0 ) )
     # obstacles.append( rectangle( ax, pos = np.array([1,-1.5]) ) )
 
     humans = crowd(ax, crowd_center = np.array([0,0]), num_people = num_people, dt = dt, horizon = horizon)
     
-    paths = humans.plan_paths(obstacles)
+    # paths = humans.plan_paths(obstacles)
+    paths = humans.plan_paths_potential_field(obstacles)
     
     # Save Data
-    with open('paths_n20_tf20_v2.npy','wb') as f:
-        np.save(f, paths)
+    # with open('paths_n20_tf20_v2.npy','wb') as f:
+    #     np.save(f, paths)
     
     # Plot trajectory
     # for i in range(num_people):
@@ -149,6 +240,7 @@ if 0:
 
     # Animate trajectories
     body = ax.scatter(paths[0,0: num_people], paths[1,0: num_people],c='g',alpha=0.5,s=70)
+    goals = ax.scatter(humans.goals[0,0: num_people], humans.goals[1,0: num_people],c='r',alpha=0.5,s=70)
     for i in range(horizon-1):
         body.set_offsets(paths[:,i*num_people: (i+1)*num_people].T)
         time.sleep(0.1)
@@ -165,3 +257,7 @@ if 0:
 # num_people = 10
 
 # paths2.npy
+
+
+# potential fields:
+# 1.how to avoid perfectly symmetric situations
