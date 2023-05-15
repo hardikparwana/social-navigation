@@ -6,7 +6,7 @@ import polytope as pt
 
 class holonomic_car:
     
-    def __init__(self, ax, pos = np.array([0,0,0]), dt = 0.01):
+    def __init__(self, ax, pos = np.array([0,0,0]), dt = 0.01, color = 'k', alpha_nominal = 0.3, alpha_nominal_humans = 0.3, alpha_nominal_obstacles = 0.3, plot_label = []):
         '''
         X0: iniytial state
         dt: simulation time step
@@ -29,11 +29,18 @@ class holonomic_car:
         # Plot handles
         self.body = ax.scatter([],[],c='g',alpha=0.0,s=70)
         points = np.array( [ [self.X[0,0]-self.width/2,self.X[1,0]-self.height/2], [self.X[0,0]+self.width/2,self.X[1,0]-self.height/2], [self.X[0,0]+self.width/2,self.X[1,0]+self.height/2], [self.X[0,0]-self.width/2,self.X[1,0]+self.height/2] ] )
-        self.patch = Polygon( points, linewidth = 1, edgecolor='k',facecolor='k' )      
+        self.patch = Polygon( points, linewidth = 1, edgecolor='k',facecolor=color, label=plot_label )      
         ax.add_patch(self.patch)
         self.render_plot()
         self.Xs = np.copy(self.X)
         self.Us = np.copy(self.U)
+        
+        # trust based alpha adaptation
+        self.alpha_nominal = alpha_nominal
+        self.alpha_nominal_humans = alpha_nominal_humans
+        self.alpha_nominal_obstacles = alpha_nominal_obstacles
+        
+    
         
     def f(self):
         return np.array([0,0,0]).reshape(-1,1)

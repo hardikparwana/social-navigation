@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from obstacles import rectangle, circle
+from matplotlib.animation import FFMpegWriter
 import casadi as cd
 import time
 
@@ -218,21 +219,26 @@ if 1:
     dt = 0.2
     tf = 40.0#20.0
     horizon = int(tf/dt)
-    num_people = 10#20
+    num_people = 20
     
     obstacles = []
     obstacles.append( rectangle( ax, pos = np.array([0,0.0]), width = 5.0, height = 5.0 ) )
     obstacles.append( circle( ax, pos = np.array([1.0,-1.0]), radius = 3.0 ) )
     # obstacles.append( rectangle( ax, pos = np.array([1,-1.5]) ) )
-
+    
+    # obstacles.append( rectangle( ax, pos = np.array([0,0.5]), width = 2.5 ) )        
+    # obstacles.append( rectangle( ax, pos = np.array([-2.5,-5.0]), width = 10.0 ) )
+    # obstacles.append( rectangle( ax, pos = np.array([-1.28,2.0]), height = 4.0 ) )
+    # obstacles.append( rectangle( ax, pos = np.array([-7.0,1.0]), height = 12.0 ) )
+    # plt.show()
     humans = crowd(ax, crowd_center = np.array([0,0]), num_people = num_people, dt = dt, horizon = horizon)
     
     # paths = humans.plan_paths(obstacles)
     paths = humans.plan_paths_potential_field(obstacles)
     
     # Save Data
-    # with open('paths_n20_tf20_v2.npy','wb') as f:
-    #     np.save(f, paths)
+    with open('paths_n20_tf40_v1.npy','wb') as f:
+        np.save(f, paths)
     
     # Plot trajectory
     # for i in range(num_people):
@@ -240,12 +246,18 @@ if 1:
 
     # Animate trajectories
     body = ax.scatter(paths[0,0: num_people], paths[1,0: num_people],c='g',alpha=0.5,s=70)
-    goals = ax.scatter(humans.goals[0,0: num_people], humans.goals[1,0: num_people],c='r',alpha=0.5,s=70)
-    for i in range(horizon-1):
-        body.set_offsets(paths[:,i*num_people: (i+1)*num_people].T)
-        time.sleep(0.1)
-        fig.canvas.draw()
-        fig.canvas.flush_events()
+    goals = ax.scatter(humans.goals[0,0: num_people], humans.goals[1,0: num_people],c='r',alpha=0.1,s=70)
+    
+    movie_name = 'videos/crowd_sim_potential_fields_obstacles.mp4'
+    metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
+    writer = FFMpegWriter(fps=15, metadata=metadata)
+    with writer.saving(fig, movie_name, 100): 
+        for i in range(horizon-1):
+            body.set_offsets(paths[:,i*num_people: (i+1)*num_people].T)
+            time.sleep(0.1)
+            writer.grab_frame()
+            fig.canvas.draw()
+            fig.canvas.flush_events()
     plt.ioff()       
         
     plt.show()
