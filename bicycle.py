@@ -6,7 +6,7 @@ import polytope as pt
 from utils import wrap_angle
 import casadi as cd
 
-class unicycle:
+class bicycle:
     
     def __init__(self, ax, pos = np.array([0,0,0]), dt = 0.01, color = 'k', alpha_nominal = 0.3, alpha_nominal_humans = 0.3, alpha_nominal_obstacles = 0.3, plot_label = []):
         '''
@@ -43,21 +43,23 @@ class unicycle:
         self.alpha_nominal_obstacles = alpha_nominal_obstacles
         
     def f(self):
-        return np.array([0,0,0]).reshape(-1,1)
+        return np.array([self.X[3,0]*np.cos(self.X[2,0]),
+                         self.X[3,0]*np.sin(self.X[2,0]),
+                         0,0]).reshape(-1,1)
 
     def f_casadi(self,X):
-        return np.array([0,0,0]).reshape(-1,1)
+        return cd.vcat( [
+            cd.cos(X[2,0]),
+            cd.sin(X[2,0]), 
+            0.0, 
+            0.0
+        ] ) 
     
     def g(self):
-        return np.array([ [np.cos(self.X[2,0]), 0],[np.sin(self.X[2,0]), 0], [0, 1] ])
+        return np.array([ [0, 0],[0, 0], [0, 1], [1, 0] ])
 
     def g_casadi(self, X):
-        return cd.vcat( [
-            cd.hcat([ cd.cos(X[2,0]), 0.0  ]), 
-            cd.hcat([ cd.sin(X[2,0]), 0.0 ]) ,
-            cd.hcat([ 0.0, 1.0])
-        ] )
-        #return np.array([ [np.cos(X[2,0]), 0],[np.sin(X[2,0]), 0], [0, 1] ])
+        return np.array([ [0, 0],[0, 0], [0, 1], [1, 0] ])
         
     def step(self,U): #Just holonomic X,T acceleration
 
@@ -114,14 +116,15 @@ class unicycle:
 
     def nominal_controller(self, targetX):
         k_omega = 2.0 
-        k_v = 0.1
+        k_v = 0.15
         distance = np.linalg.norm( self.X[0:2]-targetX[0:2] )
         desired_heading = np.arctan2( targetX[1,0]-self.X[1,0], targetX[0,0]-self.X[0,0] )
         error_heading = wrap_angle( desired_heading - self.X[2,0] )
 
         omega = k_omega * error_heading
-        v = k_v * distance * np.cos(error_heading)
-        return np.array([v, omega]).reshape(-1,1)
+        speed = k_v * distance * np.cos(error_heading)
+        u_r = k_v * ( speed - self.X[3,0] )
+        return np.array([u_r, omega]).reshape(-1,1)
 
         
         

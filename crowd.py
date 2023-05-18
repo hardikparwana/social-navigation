@@ -208,7 +208,7 @@ class crowd:
             paths = np.append(paths, self.X, axis=1)        
             t = t + 1
         return paths
-if 1:    
+if 0:    
     # Set Figure
     plt.ion()
     fig = plt.figure()

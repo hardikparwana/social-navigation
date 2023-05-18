@@ -48,6 +48,7 @@ robot = holonomic_car(ax, pos = np.array([2.5,-1.5,0]), dt = dt, color = 'red', 
 robot_nominal = holonomic_car(ax, pos = np.array([2.5,-1.5,0]), dt = dt, color='blue', alpha_nominal = alpha_cbf_nominal2*np.ones(num_people), alpha_nominal_obstacles = alpha_cbf_nominal2*np.ones(len(obstacles)), plot_label='more conservative')#2.5,-2.5,0
 plt.legend(loc = 'upper right')
 # plt.show()
+# exit()
 dt_human = 0.5
 tf_human = 10.0
 horizon_human = int(tf_human/dt_human)
