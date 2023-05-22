@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 
-alpha_cbf_nominal1 = 0.05#0.2
-alpha_cbf_nominal2 = 0.05
+alpha_cbf_nominal1 = 0.1#0.2
+alpha_cbf_nominal2 = 0.8
 h_offset = 0.07#0.07
 # higher: more conservative
 # lower: less conservative
@@ -33,15 +33,15 @@ ax.set_ylabel("Y")
 t = 0
 tf = 40.0
 dt = 0.05
-U_ref = np.array([2.0, 0.0]).reshape(-1,1)
-control_bound = np.array([2000000.0, 2000000.0]).reshape(-1,1) # works if control input bound very large
+U_ref = np.array([-2.0, 0.0]).reshape(-1,1)
+control_bound = np.array([20.0, 20.0]).reshape(-1,1) # works if control input bound very large
 d_human = 0.5#0.5
-mpc_horizon = 5
+mpc_horizon = 9
 goal = np.array([-7.5, 7.5]).reshape(-1,1)
 
-robot = unicycle(ax, pos = np.array([2.0,-2.0,3*np.pi/4]), dt = dt, color = 'red', alpha_nominal = alpha_cbf_nominal1*np.ones(num_people), plot_label='less conservative')#2.5,-2.5,0
-robot_nominal = unicycle(ax, pos = np.array([2.0,-2.0,3*np.pi/4]), dt = dt, color='blue', alpha_nominal = alpha_cbf_nominal2*np.ones(num_people), plot_label='more conservative')#2.5,-2.5,0
-plt.legend(loc='upper right')
+robot = unicycle(ax, pos = np.array([5,-5.0,3*np.pi/4]), dt = dt, color = 'red', alpha_nominal = alpha_cbf_nominal1*np.ones(num_people))#, plot_label='less conservative')#2.5,-2.5,0
+# robot_nominal = unicycle(ax, pos = np.array([5.0,-5.0,3*np.pi/4]), dt = dt, color='blue', alpha_nominal = alpha_cbf_nominal2*np.ones(num_people) ) #, plot_label='more conservative')#2.5,-2.5,0
+# plt.legend(loc='upper right')
 
 dt_human = 0.5 #0.2
 tf_human = 10#40.0
@@ -96,9 +96,9 @@ with writer.saving(fig, movie_name, 100):
                 dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account               
                 h = cd.mtimes(dist.T , dist) - d_human**2
                 if k>0:
-                    opti_mpc.subject_to( h >=  h_human[i] ) #alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
+                    # opti_mpc.subject_to( h >=  h_human[i] ) #alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
                     # opti_mpc.subject_to( h >= (alpha_human[i]**(k)) * h_human[i] )
-                    # opti_mpc.subject_to( h >= 0.0 ) # normal distance constra   # 0.3
+                    opti_mpc.subject_to( h >= 0.0 ) # normal distance constra   # 0.3
         
             
     # find control input ###############################          
@@ -120,43 +120,43 @@ with writer.saving(fig, movie_name, 100):
         human_future_positions = humans.get_future_states(t,dt,mpc_horizon)
         
         # Non-adaptive 
-        for i in range(num_people):
-            dist = robot_nominal.X[0:2] - human_positions[0:2,i].reshape(-1,1)                 
-            h_curr_humans[i] = (dist.T @ dist - d_human**2)[0,0]
-            if h_curr_humans[i]<-0.01:
-                print(f"Nominal safety violated")
-            h_curr_humans[i] = max(h_curr_humans[i], 0.01) # to account for numerical issues
+        # for i in range(num_people):
+        #     dist = robot_nominal.X[0:2] - human_positions[0:2,i].reshape(-1,1)                 
+        #     h_curr_humans[i] = (dist.T @ dist - d_human**2)[0,0]
+        #     if h_curr_humans[i]<-0.01:
+        #         print(f"************************** Nominal safety violated ***********************************")
+        #     h_curr_humans[i] = max(h_curr_humans[i], 0.01) # to account for numerical issues
         
-        # Find control input
-        U_ref = robot_nominal.nominal_controller( goal )
-        opti_mpc.set_value(robot_current_state, robot_nominal.X)
-        opti_mpc.set_value(humans_state, human_future_positions)
-        opti_mpc.set_value(h_human, h_curr_humans)
-        opti_mpc.set_value(robot_input_ref, U_ref)
-        opti_mpc.set_value(alpha_nominal_humans, robot_nominal.alpha_nominal)
+        # # Find control input
+        # U_ref = robot_nominal.nominal_controller( goal )
+        # opti_mpc.set_value(robot_current_state, robot_nominal.X)
+        # opti_mpc.set_value(humans_state, human_future_positions)
+        # opti_mpc.set_value(h_human, h_curr_humans)
+        # opti_mpc.set_value(robot_input_ref, U_ref)
+        # opti_mpc.set_value(alpha_nominal_humans, robot_nominal.alpha_nominal)
     
-        # mpc_sol = opti_mpc.solve();
-        try:
-            U_ref = np.array([[-10],[0]])
-            # opti_mpc.set_initial( robot_inputs, np.repeat( U_ref, mpc_horizon, 1 ) ) 
-            mpc_sol = opti_mpc.solve();
-        except Exception as e:
-            print(e)
-            u_temp = np.array([[-10000],[0]])
-            opti_mpc.set_value(robot_input_ref, u_temp)
-            opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
-            mpc_sol = opti_mpc.solve();
+        # # mpc_sol = opti_mpc.solve();
+        # try:
+        #     U_ref = np.array([[-10],[0]])
+        #     # opti_mpc.set_initial( robot_inputs, np.repeat( U_ref, mpc_horizon, 1 ) ) 
+        #     mpc_sol = opti_mpc.solve();
+        # except Exception as e:
+        #     print(e)
+        #     u_temp = np.array([[-10000],[0]])
+        #     opti_mpc.set_value(robot_input_ref, u_temp)
+        #     opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+        #     mpc_sol = opti_mpc.solve();
         
-        robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
-        print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans)}, alpha_human:{mpc_sol.value(alpha_human)}")
-        robot_nominal.render_plot()
+        # robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
+        # print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans)}, alpha_human:{mpc_sol.value(alpha_human)}")
+        # robot_nominal.render_plot()
         
         # Adaptive
         for i in range(num_people):
             dist = robot.X[0:2] - human_positions[0:2,i].reshape(-1,1)                 
             h_curr_humans[i] = (dist.T @ dist - d_human**2)[0,0]
             if h_curr_humans[i]<-0.01:
-                print(f"Adaptive safety violated")
+                print(f"****************************** Adaptive safety violated **************************************")
             h_curr_humans[i] = max(h_curr_humans[i], 0.01) # to account for numerical issues
         
         # Find control input

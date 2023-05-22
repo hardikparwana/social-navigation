@@ -237,7 +237,7 @@ if 0:
     paths = humans.plan_paths_potential_field(obstacles)
     
     # Save Data
-    with open('paths_n20_tf40_v1.npy','wb') as f:
+    with open('paths_n20_tf40_v1_test.npy','wb') as f:
         np.save(f, paths)
     
     # Plot trajectory
@@ -248,7 +248,7 @@ if 0:
     body = ax.scatter(paths[0,0: num_people], paths[1,0: num_people],c='g',alpha=0.5,s=70)
     goals = ax.scatter(humans.goals[0,0: num_people], humans.goals[1,0: num_people],c='r',alpha=0.1,s=70)
     
-    movie_name = 'videos/crowd_sim_potential_fields_obstacles.mp4'
+    movie_name = 'Videos/crowd_sim_potential_fields_obstacles.mp4'
     metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
     writer = FFMpegWriter(fps=15, metadata=metadata)
     with writer.saving(fig, movie_name, 100): 
