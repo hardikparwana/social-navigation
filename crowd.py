@@ -237,8 +237,8 @@ if 0:
     paths = humans.plan_paths_potential_field(obstacles)
     
     # Save Data
-    with open('paths_n20_tf40_v1_test.npy','wb') as f:
-        np.save(f, paths)
+    # with open('paths_n20_tf40_v1_test.npy','wb') as f:
+    #     np.save(f, paths)
     
     # Plot trajectory
     # for i in range(num_people):

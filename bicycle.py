@@ -59,10 +59,15 @@ class bicycle:
         return np.array([ [0, 0],[0, 0], [0, 1], [1, 0] ])
     
     def f_xddot_casadi(self,X):
-        return np.array()
+        return np.array([0,0,0,0]).reshape(-1,1)
         
     def g_xddot_casadi(self,X):
-        
+        return cd.vcat([
+            cd.hcat([ cd.cos(X[2,0]), -X[3,0]*cd.sin(X[2,0]) ]),
+            cd.hcat([ cd.sin(X[2,0]),  X[3,0]*cd.cos(X[2,0]) ]),
+            cd.hcat([0, 0]),
+            cd.hcat([0, 0])
+        ])
 
     def g_casadi(self, X):
         return np.array([ [0, 0],[0, 0], [0, 1], [1, 0] ])
