@@ -97,7 +97,7 @@ with writer.saving(fig, movie_name, 100):
                 h = cd.mtimes(dist.T , dist) - d_human**2
                 if k>0:
                     # opti_mpc.subject_to( h >=  h_human[i] ) #alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
-                    # opti_mpc.subject_to( h >= (alpha_human[i]**(k)) * h_human[i] )
+                    opti_mpc.subject_to( h >= (alpha_human[i]**(k)) * h_human[i] )
                     opti_mpc.subject_to( h >= 0.0 ) # normal distance constra   # 0.3
         
             

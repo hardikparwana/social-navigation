@@ -59,6 +59,7 @@ with writer.saving(fig, movie_name, 100):
     
     # Parameters to set inside time loop
     humans_state = opti_mpc.parameter(2,(mpc_horizon+1)*num_people)
+    humans_state_dot = opti_mpc.parameter(2,(mpc_horizon+1)*num_people)
     h_human = opti_mpc.parameter(num_people)
     robot_current_state = opti_mpc.parameter( robot.X.shape[0],1 )
     robot_input_ref = opti_mpc.parameter(robot.U.shape[0], robot.U.shape[1])
@@ -68,6 +69,7 @@ with writer.saving(fig, movie_name, 100):
     robot_states = opti_mpc.variable(robot.X.shape[0], mpc_horizon+1)
     robot_inputs = opti_mpc.variable(robot.U.shape[0], mpc_horizon)
     alpha_human = opti_mpc.variable(num_people)
+    alpha2_human = opti_mpc.variable(num_people)
     
     # alpha constraints
     opti_mpc.subject_to( alpha_human >= np.zeros(num_people) )
@@ -92,11 +94,23 @@ with writer.saving(fig, movie_name, 100):
         if (k > 0):
             ################ Collision avoidance with humans
             human_states_horizon = humans_state[0:2, k*num_people:(k+1)*num_people]
+            human_states_dot_horizon = humans_state_dot[0:2, k*num_people:(k+1)*num_people]
             for i in range(num_people):
                 dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account               
                 h = cd.mtimes(dist.T , dist) - d_human**2
                 if k>0:
                     opti_mpc.subject_to( h >= alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
+                    
+                    robot_state_dot = robot.f_casadi(robot_states[:,k])*dt + cd.mtimes(robot.g_casadi(robot_states[:,k]))
+                    dist_dot = robot_state_dot[0:2] - human_states_dot_horizon[0:2,i]
+                    dist_ddot = 0
+                    h_dot  = 2*cd.mtimes(dist.T, dist_dot )
+                    h_ddot = 2 * cd.mtimes( dist.T, dist_ddot ) + 2 * cd.mtimes( dist_dot.T, dist_dot )
+                    h1 = h_dot + alpha_human[i]**k * h_human[i]
+                    h1_dot = h_ddot
+                    opti_mpc.subject_to( h1_dot >= - alpha2_human[i] * h1 )
+                    opti_mpc.subject_to( h1 >= 0 )
+                                        
                     #opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
         
             
@@ -130,6 +144,7 @@ with writer.saving(fig, movie_name, 100):
         U_ref = robot_nominal.nominal_controller( goal )
         opti_mpc.set_value(robot_current_state, robot_nominal.X)
         opti_mpc.set_value(humans_state, human_future_positions)
+        opti_mpc.set_value(humans_state_dot, human_speeds)
         opti_mpc.set_value(h_human, h_curr_humans)
         opti_mpc.set_value(robot_input_ref, U_ref)
         opti_mpc.set_value(alpha_nominal_humans, robot_nominal.alpha_nominal)
