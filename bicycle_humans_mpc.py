@@ -8,29 +8,23 @@ from bicycle import bicycle
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
-from trust_utils import compute_trust
 
-alpha_cbf_nominal_adaptive = 0.9#0.2#0.2 # red
-alpha_cbf_nominal_fixed = 0.9            # blue
-alpha_obstacle_nominal = 0.2
+alpha_cbf_nominal1 = 0.1#0.2 #
+alpha_cbf_nominal2 = 0.9
 h_offset = 0.07#0.07
-adapt_params = True
 # higher: more conservative in Discrete time
 # lower: less conservative in Discrete time
 
-# Trust parameters
-alpha_der_max = 2.0#0.5
-h_min = 6.0 # 6.0 # 1.0
-min_dist = 2.0 # 2.0 # 1.0
-
-movie_name = 'social-navigation/Videos/bicycle_humans_trust_trials2.mp4'
+movie_name = 'social-navigation/Videos/bicycle_humans_cbf_order1_demo2.mp4'
 paths_file = 'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
 
 # demo 1: 1st order CBF
 # demo2: without h1>=0 constraint
 
+
 num_people = 10
+
 
 # Set Figure
 plt.ion()
@@ -49,11 +43,8 @@ d_human = 0.5#0.5
 mpc_horizon = 6
 goal = np.array([-7.5, 7.5]).reshape(-1,1)
 
-pos_init = np.array([2.0,-2.0,np.pi/2, 0])
-# pos_init = np.array([4.0,-4.0,np.pi/2, 0]) # and kv = 0.2 and 
-
-robot_nominal = bicycle(ax, pos = pos_init, dt = dt, color='blue', alpha_nominal = alpha_cbf_nominal_fixed*np.ones(num_people), plot_label='Fixed Params')#2.5,-2.5,0
-robot = bicycle(ax, pos = pos_init, dt = dt, color = 'red', alpha_nominal = alpha_cbf_nominal_adaptive*np.ones(num_people), plot_label='Adaptive')#2.5,-2.5,0
+robot_nominal = bicycle(ax, pos = np.array([2.0,-2.0,np.pi/2, 0]), dt = dt, color='blue', alpha_nominal = alpha_cbf_nominal2*np.ones(num_people), plot_label='less conservative')#2.5,-2.5,0
+robot = bicycle(ax, pos = np.array([2.0,-2.0,np.pi/2, 0]), dt = dt, color = 'red', alpha_nominal = alpha_cbf_nominal1*np.ones(num_people), plot_label='more conservative')#2.5,-2.5,0
 
 plt.legend(loc='upper right')
 
@@ -172,11 +163,10 @@ with writer.saving(fig, movie_name, 100):
     nominal_sim = True
     adaptive_sim = True
 
-    human_goals = humans.paths[:,-humans.num_people:]
     while t < tf:
         
         human_positions = humans.current_position(t, dt)
-        human_speeds = (human_positions - human_position_prev)/dt
+        # human_speeds = (human_positions - human_position_prev)/dt
         human_future_positions = humans.get_future_states(t,dt,mpc_horizon)
         
         if nominal_sim:
@@ -226,26 +216,6 @@ with writer.saving(fig, movie_name, 100):
                 if h_curr_humans[i]<-0.01:
                     print(f"Adaptive safety violated")
                 h_curr_humans[i] = max(h_curr_humans[i], 0.01) # to account for numerical issues
-
-                if adapt_params:
-                    # Do trust adaptation here: no best case right now. just use last velocity for now
-                    dh_dx_robot = 2 * dist.T 
-                    dh_dx_human = - 2 * dist.T
-                    dx_dt_human = human_speeds[0:2,i]
-                    dx_dt_robot = robot.U[0:2]
-
-                    alpha = (1-robot.alpha_nominal[i])/dt
-
-                    # dx_dt_human_nominal = dx_dt_human
-                    dx_dt_human_nominal = (human_goals[0:2,i] - human_positions[0:2,i]).reshape(-1,1)
-
-                    A = dh_dx_human
-                    b = - alpha * h_curr_humans[i] - dh_dx_robot @ dx_dt_robot
-                    trust, asserted = compute_trust( A, b, dx_dt_human, dx_dt_human_nominal, h_curr_humans[i], min_dist = min_dist, h_min = h_min )
-                    alpha = max(0,alpha + alpha_der_max * trust)
-                    robot.alpha_nominal[i] = max( 0, 1-alpha*dt )
-                    print(f"alpha: { np.min(robot.alpha_nominal) }, {np.max( robot.alpha_nominal )}")
-        
             
             # Find control input
             U_ref = robot.nominal_controller( goal )
@@ -279,8 +249,7 @@ with writer.saving(fig, movie_name, 100):
         fig.canvas.flush_events()
         writer.grab_frame()
         
-        # humans.render_plot(human_positions)
-        humans.render_plot_trust(human_positions, robot.alpha_nominal)
+        humans.render_plot(human_positions)
         human_position_prev = np.copy(human_positions)
         
         t = t + dt

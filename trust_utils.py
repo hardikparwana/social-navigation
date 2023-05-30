@@ -40,7 +40,7 @@ def compute_trust(A,b,xdotj,xdotj_nominal,h,min_dist = 1.0,h_min = 1.0): # h > 0
     try: 
         assert(rho_dist>0.001) # should always be positive
     except:
-        print(f"Assertion failed rho_dist:{rho_dist}, trust:{trust}") 
+        # print(f"Assertion failed rho_dist:{rho_dist}, trust:{trust}") 
         asserted = False
         
     return trust, asserted

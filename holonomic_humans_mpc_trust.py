@@ -6,22 +6,26 @@ from obstacles import rectangle
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
+from trust_utils import compute_trust
 
-alpha_cbf_nominal1 = 0.2#0.2
-alpha_cbf_nominal2 = 0.8
+alpha_cbf_nominal_adaptive = 1.0#0.2#0.2
+alpha_cbf_nominal_fixed = 1.0
+alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
+adapt_params = True
 # higher: more conservative
 # lower: less conservative
 
 # Trust parameters
-# alpha_der_max
+alpha_der_max = 0.5
+h_min = 1.0
+min_dist = 1.0
 
-movie_name = 'social-navigation/Videos/humans_2alphas_demo1.mp4'
+movie_name = 'social-navigation/Videos/humans_holonomic_trust_trials.mp4'
 paths_file = 'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
 
 num_people = 10
-
 
 # Set Figure
 plt.ion()
@@ -38,8 +42,8 @@ U_ref = np.array([-0.5,0.5, 0.0]).reshape(-1,1)
 d_human = 0.5#0.5
 mpc_horizon = 5
 
-robot = holonomic_car(ax, pos = np.array([4.0,-4.0,0]), dt = dt, color = 'red', alpha_nominal = alpha_cbf_nominal1*np.ones(num_people), plot_label='less conservative')#2.5,-2.5,0
-robot_nominal = holonomic_car(ax, pos = np.array([4.0,-4.0,0]), dt = dt, color='blue', alpha_nominal = alpha_cbf_nominal2*np.ones(num_people), plot_label='more conservative')#2.5,-2.5,0
+robot = holonomic_car(ax, pos = np.array([4.0,-4.0,0]), dt = dt, color = 'red', alpha_nominal = alpha_cbf_nominal_adaptive*np.ones(num_people), plot_label='Adaptive')#2.5,-2.5,0
+robot_nominal = holonomic_car(ax, pos = np.array([4.0,-4.0,0]), dt = dt, color='blue', alpha_nominal = alpha_cbf_nominal_fixed*np.ones(num_people), plot_label='Fixed Params')#2.5,-2.5,0
 obstacles = [1]
 plt.legend(loc='upper right')
 # h = [0, 0] # barrier functions
@@ -104,13 +108,20 @@ with writer.saving(fig, movie_name, 100):
         if (k > 0):
             ################ Collision avoidance with humans
             human_states_horizon = humans_state[0:2, k*num_people:(k+1)*num_people]
+            # human_states_horizon_next = humans_state[0:2, (k+1)*num_people:(k+1)*num_people]
+            human_states_horizon_previous = humans_state[0:2, (k-1)*num_people:(k)*num_people]
             for i in range(num_people):
                 dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account               
                 h = cd.mtimes(dist.T , dist) - d_human**2
                 if k>0:
                     # opti_mpc.subject_to( h >= h_human[i] )
-                    opti_mpc.subject_to( h >= (alpha_human[i]**k) * h_human[i] ) # CBF constraint # h_human is based on current state
+                    # opti_mpc.subject_to( h >= (alpha_human[i]**k) * h_human[i] ) # CBF constraint # h_human is based on current state
                     opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
+
+                    # actual CBF constraint
+                    dist_last = robot_states[0:2,k-1] - human_states_horizon_previous[0:2,i]
+                    h_last = cd.mtimes(dist_last.T , dist_last) - d_human**2
+                    opti_mpc.subject_to( h >= alpha_human[i] * h_last ) 
             
             ################ Collision avoidance with polytopic obstacles          
             lambda_o = opti_mpc.variable(len(obstacles),4)
@@ -126,7 +137,7 @@ with writer.saving(fig, movie_name, 100):
         
             
     # find control input ###############################          
-    alpha_obstacle_diff = alpha_obstacle-alpha_cbf_nominal1*np.ones(len(obstacles))
+    alpha_obstacle_diff = alpha_obstacle-alpha_obstacle_nominal*np.ones(len(obstacles))
     alpha_humans_diff = alpha_human-alpha_nominal_humans
     objective += 10.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) + cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )                
     opti_mpc.minimize(objective)
@@ -159,6 +170,7 @@ with writer.saving(fig, movie_name, 100):
         # mpc_sol = opti_mpc.solve();
         try:
             mpc_sol = opti_mpc.solve();
+            mpc_sol = opti_mpc.solve();
         except Exception as e:
             print(e)
             u_temp = np.array([[100],[100],[0]])
@@ -176,20 +188,21 @@ with writer.saving(fig, movie_name, 100):
             h_curr_humans[i] = (dist.T @ dist - d_human**2)[0,0]
             h_curr_humans[i] = max(h_curr_humans[i], 0.01) # to account for numerical issues
 
-            # Do trust adaptation here: no best case right now. just use last velocity for now
-            # dh_dx_robot = 2 * dist.T 
-            # dh_dx_human = - 2 * dist.T
-            # dx_dt_human = human_speeds[0:2,i]
-            # dx_dt_robot = robot.U[0:2]
+            if adapt_params:
+                # Do trust adaptation here: no best case right now. just use last velocity for now
+                dh_dx_robot = 2 * dist.T 
+                dh_dx_human = - 2 * dist.T
+                dx_dt_human = human_speeds[0:2,i]
+                dx_dt_robot = robot.U[0:2]
 
-            # alpha = (1-robot.alpha_nominal[i])/dt
+                alpha = (1-robot.alpha_nominal[i])/dt
 
-            # A = dh_dx_human
-            # b = - alpha * h_curr_humans[i] - dh_dx_robot @ dx_dt_robot
-            # trust, asserted = compute_trust( A, b, dx_dt_human, dx_dt_human, h_curr_humans[i], min_dist = 1.0, h_min = 1.0 )
-            # alpha = alpha + alpha_der_max * trust
-            # robot.alpha_nominal[i] = max( 0, 1-alpha*dt )
-
+                A = dh_dx_human
+                b = - alpha * h_curr_humans[i] - dh_dx_robot @ dx_dt_robot
+                trust, asserted = compute_trust( A, b, dx_dt_human, dx_dt_human, h_curr_humans[i], min_dist = min_dist, h_min = h_min )
+                alpha = max(0,alpha + alpha_der_max * trust)
+                robot.alpha_nominal[i] = max( 0, 1-alpha*dt )
+                print(f"alpha: { np.min(robot.alpha_nominal) }, {np.max( robot.alpha_nominal )}")
         
         # Find control input
         opti_mpc.set_value(robot_current_state, robot.X)
@@ -200,6 +213,7 @@ with writer.saving(fig, movie_name, 100):
     
         # mpc_sol = opti_mpc.solve();
         try:
+            mpc_sol = opti_mpc.solve();
             mpc_sol = opti_mpc.solve();
         except Exception as e:
             print(e)
@@ -215,7 +229,8 @@ with writer.saving(fig, movie_name, 100):
         fig.canvas.flush_events()
         writer.grab_frame()
         
-        humans.render_plot(human_positions)
+        # humans.render_plot(human_positions)
+        humans.render_plot_trust(human_positions, robot.alpha_nominal)
         human_position_prev = np.copy(human_positions)
         
         t = t + dt

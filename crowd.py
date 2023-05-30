@@ -96,8 +96,12 @@ class crowd:
         # current_pos = self.paths[:,counter*self.num_people: (counter+1)*self.num_people] + U * (t-counter*self.dt)
         self.body.set_offsets(current_pos.T)
         # self.plot_counter = self.plot_counter + 1
-        
-    
+
+    def render_plot_trust(self, current_pos, alphas):
+        self.body.remove()
+        print(f"{1.0-alphas}")
+        self.body = self.ax.scatter(current_pos[0,:], current_pos[1,:],c=(1.0-alphas),alpha=0.5,s=50, cmap='RdYlGn')#50
+            
     def plan_paths(self, obstacles):
         # Use MPC to plan paths for all humans in centralized manner
         opti = cd.Opti()

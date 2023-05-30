@@ -12,7 +12,7 @@ h_offset = 0.07#0.07
 # higher: more conservative
 # lower: less conservative
 
-movie_name = 'social-navigation/videos/holonomic_humans_take_test3.mp4'
+movie_name = 'social-navigation/Videos/holonomic_humans_test.mp4'
 
 # Set Figure
 plt.ion()
@@ -198,7 +198,7 @@ with writer.saving(fig, movie_name, 100):
             mpc_sol = opti_mpc.solve();
         
         robot.step(mpc_sol.value(robot_inputs[:,0]))
-        print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans)}, obs_dist: {np.min(h_curr_obstacles)} alpha_human:{mpc_sol.value(alpha_human)}")
+        # print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans)}, obs_dist: {np.min(h_curr_obstacles)} alpha_human:{mpc_sol.value(alpha_human)}")
         robot.render_plot()
         fig.canvas.draw()
         fig.canvas.flush_events()
