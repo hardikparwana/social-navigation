@@ -128,7 +128,7 @@ class bicycle:
 
     def nominal_controller(self, targetX):
         k_omega = 5.0#2.0 
-        k_v = 2.0#0.3#0.15##5.0#0.15
+        k_v = 2.0#3.0#0.3#0.15##5.0#0.15
         distance = np.linalg.norm( self.X[0:2]-targetX[0:2] )
         desired_heading = np.arctan2( targetX[1,0]-self.X[1,0], targetX[0,0]-self.X[0,0] )
         error_heading = wrap_angle( desired_heading - self.X[2,0] )

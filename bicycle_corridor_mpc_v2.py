@@ -11,18 +11,20 @@ from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 from trust_utils import compute_trust
 
-alpha_cbf_nominal_adaptive = 0.9#10.0#0.9#0.2#0.2 # red
-alpha_cbf_nominal_fixed = 0.9#1.0#0.9            # blue
+alpha_cbf_nominal_adaptive = 1.0#10.0#0.9#0.2#0.2 # red
+alpha_cbf_nominal_fixed = 1.0#1.0#0.9            # blue
 alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
 adapt_params = True
 
+first_order = False
+
 # Trust parameters
-alpha_der_max = 2.0#0.5
+alpha_der_max = 2.0#2.0#0.5
 h_min = 4.0 # 6.0 # 1.0
 min_dist = 2.0 # 2.0 # 1.0
 
-movie_name = 'social-navigation/Videos/bicycle_corridor_test.mp4'
+movie_name = 'social-navigation/Videos/bicycle_corridor_second_order.mp4'
 paths_file = []#'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
 
@@ -51,6 +53,7 @@ tf = 15.0
 dt = 0.05#0.05
 U_ref = np.array([2.0, 0.0]).reshape(-1,1)
 control_bound = np.array([2000.0, 20.0]).reshape(-1,1) # works if control input bound very large
+# control_bound = np.array([10.0, 5.0]).reshape(-1,1) # works if control input bound very large
 d_human = 0.3#0.5#0.5
 mpc_horizon = 6
 goal = np.array([-2.0, -1.3]).reshape(-1,1)
@@ -158,69 +161,72 @@ with writer.saving(fig, movie_name, 100):
                 humans_state_horizon_next = humans_state[0:2, (k+1)*num_people:(k+2)*num_people]
                 humans_state_horizon_prev = humans_state[0:2, (k-1)*num_people:(k)*num_people]
                 human_states_dot_horizon = (humans_state_horizon_next - human_states_horizon)/dt
-            for i in range(2): # TODOs.. it fails with just 2 humans????
+            for i in range(num_people): # TODOs.. it fails with just 2 humans???? -> this works if original CBF condition imposed
                 a = 1.0
                 dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account  
                 dist[0,0] = dist[0,0] / a
                 h = cd.mtimes(dist.T , dist) - d_human**2
 
-                if (k < mpc_horizon) and (k>0): 
+                if (k < (mpc_horizon)) and (k>0): 
                     print(f" k:{k}, i:{i} ")
-                    # First order CBF condition
-                    # opti_mpc.subject_to( h >= alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
-                    # opti_mpc.subject_to( h >= 1.0 * h_human[i] ) # CBF constraint # h_human is based on current state
 
-                    dist_prev = robot_states[0:2,k-1] - humans_state_horizon_prev[0:2,i] 
-                    h_prev = cd.mtimes(dist_prev.T , dist_prev) - d_human**2
-                    opti_mpc.subject_to( h >= alpha_human[i] * h_prev )
-                                                            
-                    # Direct state constraint                                        
-                    # opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
+                    if first_order:
+                        # First order CBF condition
+                        # opti_mpc.subject_to( h >= alpha_human[i]**(k+1) * h_human[i] ) # CBF constraint # h_human is based on current state
+                        # opti_mpc.subject_to( h >= 1.0 * h_human[i] ) # CBF constraint # h_human is based on current state
 
-                    # Second order CBF condition in discrete time
-                    # robot_state_dot = (robot_states[:,k+1] - robot_states[:,k])/dt
-                    # robot_state_dot = robot.f_casadi(robot_states[:,k]) + cd.mtimes( robot.g_casadi(robot_states[:,k]), robot_inputs[:,k]  )
-                    # dist_dot = robot_state_dot[0:2] - human_states_dot_horizon[0:2,i]
-                    # dist_dot[0,0] = dist_dot[0,0] / a
-                    # dist_ddot = (robot.f_xddot_casadi(robot_states[:,k]) + cd.mtimes(robot.g_xddot_casadi(robot_states[:,k]), robot_inputs[:,k] ))[0:2,0]
-                    # dist_ddot[0,0] = dist_ddot[0,0]/a
-                    # h_dot  = 2*cd.mtimes(dist.T, dist_dot )
-                    # h_ddot = 2 * cd.mtimes( dist.T, dist_ddot ) + 2 * cd.mtimes( dist_dot.T, dist_dot )
-                    # h1 = h_dot + alpha1_human[i]**k * h_human[i]
-                    # h1_dot = h_ddot
-                    # opti_mpc.subject_to( h1_dot >= - alpha2_human[i] * h1 )
-                    # opti_mpc.subject_to( h1 >= 0 )
+                        dist_prev = robot_states[0:2,k-1] - humans_state_horizon_prev[0:2,i] 
+                        h_prev = cd.mtimes(dist_prev.T , dist_prev) - d_human**2
+                        opti_mpc.subject_to( h >= alpha_human[i] * h_prev )
+                                                                
+                        # Direct state constraint                                        
+                        # opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
+                    else:
+
+                        # Second order CBF condition in discrete time
+                        robot_state_dot = (robot_states[:,k+1] - robot_states[:,k])/dt
+                        robot_state_dot = robot.f_casadi(robot_states[:,k]) + cd.mtimes( robot.g_casadi(robot_states[:,k]), robot_inputs[:,k]  )
+                        dist_dot = robot_state_dot[0:2] - human_states_dot_horizon[0:2,i]
+                        dist_dot[0,0] = dist_dot[0,0] / a
+                        dist_ddot = (robot.f_xddot_casadi(robot_states[:,k]) + cd.mtimes(robot.g_xddot_casadi(robot_states[:,k]), robot_inputs[:,k] ))[0:2,0]
+                        dist_ddot[0,0] = dist_ddot[0,0]/a
+                        h_dot  = 2*cd.mtimes(dist.T, dist_dot )
+                        h_ddot = 2 * cd.mtimes( dist.T, dist_ddot ) + 2 * cd.mtimes( dist_dot.T, dist_dot )
+                        h1 = h_dot + alpha1_human[i]**k * h_human[i]
+                        h1_dot = h_ddot
+                        opti_mpc.subject_to( h1_dot >= - alpha2_human[i] * h1 )
+                        opti_mpc.subject_to( h1 >= 0 )
 
             ################ Collision avoidance with polytopic obstacles    
-            if (k>0):      
-                lambda_o = opti_mpc.variable(len(obstacles),4)
-                lambda_r = opti_mpc.variable(len(obstacles),4)
+            # if (k>0):      
+            #     lambda_o = opti_mpc.variable(len(obstacles),4)
+            #     lambda_r = opti_mpc.variable(len(obstacles),4)
                 
-                # Robot Polytopic location at state at time k
-                Rot = cd.hcat( [  
-                    cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
-                    cd.vcat( [-cd.sin(robot_states[2,k]), cd.cos(robot_states[2,k]) ] )
-                    ] )        
-                A_r = robot.A @ Rot
-                b_r = cd.mtimes(cd.mtimes(robot.A, Rot), robot_states[0:2,k]) + robot.b
+            #     # Robot Polytopic location at state at time k
+            #     Rot = cd.hcat( [  
+            #         cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
+            #         cd.vcat( [-cd.sin(robot_states[2,k]), cd.cos(robot_states[2,k]) ] )
+            #         ] )        
+            #     A_r = robot.A @ Rot
+            #     b_r = cd.mtimes(cd.mtimes(robot.A, Rot), robot_states[0:2,k]) + robot.b
             
-                # Form polytopic CBF constraints
-                for i in range(len(obstacles)):
-                    A_o, b_o = obstacles[i].polytopic_location()
-                    lambda_bound = cd.fmax(1.0, 2*h_obstacles[i])                
-                    opti_mpc.subject_to(  - cd.mtimes(lambda_o[i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) >= alpha_obstacle[i]**k * h_obstacles[i] + h_offset )
-                    opti_mpc.subject_to(  cd.mtimes(lambda_o[i,:], A_o) + cd.mtimes(lambda_r[i,:], A_r) == 0  )
-                    temp = cd.mtimes( lambda_o[i,:], A_o )
-                    opti_mpc.subject_to(  cd.mtimes( temp, temp.T ) <= lambda_bound  )
-                    opti_mpc.subject_to( lambda_o[i,:] >= 0 ) 
-                    opti_mpc.subject_to( lambda_r[i,:] >= 0 )
+            #     # Form polytopic CBF constraints
+            #     for i in range(len(obstacles)):
+            #         A_o, b_o = obstacles[i].polytopic_location()
+            #         lambda_bound = cd.fmax(1.0, 2*h_obstacles[i])                
+            #         opti_mpc.subject_to(  - cd.mtimes(lambda_o[i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) >= alpha_obstacle[i]**k * h_obstacles[i] + h_offset )
+            #         opti_mpc.subject_to(  cd.mtimes(lambda_o[i,:], A_o) + cd.mtimes(lambda_r[i,:], A_r) == 0  )
+            #         temp = cd.mtimes( lambda_o[i,:], A_o )
+            #         opti_mpc.subject_to(  cd.mtimes( temp, temp.T ) <= lambda_bound  )
+            #         opti_mpc.subject_to( lambda_o[i,:] >= 0 ) 
+            #         opti_mpc.subject_to( lambda_r[i,:] >= 0 )
             
             
     # find control input ###############################          
     alpha_obstacle_diff = alpha_obstacle-alpha_nominal_obstacles
     alpha_humans_diff = alpha_human-alpha_nominal_humans
     alpha1_humans_diff = alpha1_human-alpha_nominal_humans
-    alpha2_humans_diff = alpha2_human-20*alpha_nominal_humans
+    alpha2_humans_diff = alpha2_human-10*alpha_nominal_humans
     objective += 10.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     # objective += 1.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     opti_mpc.minimize(objective)
@@ -442,3 +448,5 @@ with writer.saving(fig, movie_name, 100):
 # alpha - alpha_nominal weight also important. most times it ends up choosing a value far away from aloha_nominal. always very relaxed to be able to go towards the goal
 # sometimes it fails only because of bad U_ref -> local infeasibility fir IPOPT., it is stupid though
 # MPC with h>=0 constraint only and long time horizon takes it in expected motion
+
+# first order with large horizon: might deviate a lot more than small horizon and second order CBF
