@@ -458,3 +458,4 @@ with writer.saving(fig, movie_name, 100):
 # MPC with h>=0 constraint only and long time horizon takes it in expected motion
 
 # first order with large horizon: might deviate a lot more than small horizon and second order CBF
+# very large time horizon with fixed CBF parameter is also not good. can give more conservative solutions
