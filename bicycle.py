@@ -127,7 +127,7 @@ class bicycle:
         return A, b_f, b_g*self.dt
 
     def nominal_controller(self, targetX):
-        k_omega = 10.0#2.0 
+        k_omega = 5.0#2.0 
         k_v = 2.0#0.3#0.15##5.0#0.15
         distance = np.linalg.norm( self.X[0:2]-targetX[0:2] )
         desired_heading = np.arctan2( targetX[1,0]-self.X[1,0], targetX[0,0]-self.X[0,0] )
@@ -135,7 +135,7 @@ class bicycle:
 
         omega = k_omega * error_heading
         speed = k_v * distance * np.cos(error_heading)
-        u_r = 1.0 * k_v * ( speed - self.X[3,0] )
+        u_r = 3.0 * k_v * ( speed - self.X[3,0] )
         return np.array([u_r, omega]).reshape(-1,1)
 
         

@@ -73,7 +73,7 @@ h_curr_humans = np.zeros(num_people)
 
 # hard code positions and speeds
 humans.X[0,0] = -1.7; humans.X[1,0] = -1.5;
-humans.X[0,1] = -1.7; humans.X[1,1] = -0.9#-1.0;
+humans.X[0,1] = -1.7; humans.X[1,1] = -0.7#-1.0;
 humans.X[0,2] = -2.2; humans.X[1,2] = -1.6;
 humans.X[0,3] = -2.2; humans.X[1,3] = -0.6;
 humans.X[0,4] = -2.2; humans.X[1,4] = -1.9;
@@ -156,17 +156,23 @@ with writer.saving(fig, movie_name, 100):
 
             if (k < mpc_horizon):
                 humans_state_horizon_next = humans_state[0:2, (k+1)*num_people:(k+2)*num_people]
+                humans_state_horizon_prev = humans_state[0:2, (k-1)*num_people:(k)*num_people]
                 human_states_dot_horizon = (humans_state_horizon_next - human_states_horizon)/dt
-            for i in range(2):
+            for i in range(2): # TODOs.. it fails with just 2 humans????
                 a = 1.0
                 dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account  
                 dist[0,0] = dist[0,0] / a
                 h = cd.mtimes(dist.T , dist) - d_human**2
+
                 if (k < mpc_horizon) and (k>0): 
                     print(f" k:{k}, i:{i} ")
                     # First order CBF condition
-                    opti_mpc.subject_to( h >= alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
+                    # opti_mpc.subject_to( h >= alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
                     # opti_mpc.subject_to( h >= 1.0 * h_human[i] ) # CBF constraint # h_human is based on current state
+
+                    dist_prev = robot_states[0:2,k-1] - humans_state_horizon_prev[0:2,i] 
+                    h_prev = cd.mtimes(dist_prev.T , dist_prev) - d_human**2
+                    opti_mpc.subject_to( h >= alpha_human[i] * h_prev )
                                                             
                     # Direct state constraint                                        
                     # opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
@@ -315,18 +321,20 @@ with writer.saving(fig, movie_name, 100):
                 # print(f" U_ref:{ U_ref.T }, U:{ robot_nominal.U.T } ")
             except Exception as e:
                 print(e)
-                # exit()
-                u_temp = np.array([[-20],[0]])
-                opti_mpc.set_value(robot_input_ref, u_temp)
-                # print(f" Set ref value to : {} ")
-                opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
-                try:
-                    mpc_sol = opti_mpc.solve();
-                    robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
-                except Exception as e:
-                    print(f"********************************* Fixed: MPC Failed ********************************")
-                    # robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
-                    nominal_sim = False
+                print(f"********************************* Fixed: MPC Failed ********************************")
+                nominal_sim = False
+                # # exit()
+                # u_temp = np.array([[-20],[0]])
+                # opti_mpc.set_value(robot_input_ref, u_temp)
+                # # print(f" Set ref value to : {} ")
+                # opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+                # try:
+                #     mpc_sol = opti_mpc.solve();
+                #     robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
+                # except Exception as e:
+                    # print(f"********************************* Fixed: MPC Failed ********************************")
+                #     # robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
+                    # nominal_sim = False
                 
 
                 
@@ -389,18 +397,21 @@ with writer.saving(fig, movie_name, 100):
                 # print(f" U_ref:{ U_ref.T }, U:{ robot.U.T } ")
             except Exception as e:
                 print(e)
+                print(f"********************************* Adaptive: MPC Failed ********************************")
+                adaptive_sim = False
                 # exit()
-                u_temp = np.array([[-20],[0]])
-                opti_mpc.set_value(robot_input_ref, u_temp)
-                # print(f" Set ref value to : {} ")
-                opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
-                try:
-                    mpc_sol = opti_mpc.solve();
-                    robot.step(mpc_sol.value(robot_inputs[:,0]))
-                except Exception as e:
-                    print(f"********************************* Adaptive: MPC Failed ********************************")
-                    # robot.step(mpc_sol.value(robot_inputs[:,0]))
-                    adaptive_sim = False
+                # adaptive_sim = False
+                # u_temp = np.array([[-20],[0]])
+                # opti_mpc.set_value(robot_input_ref, u_temp)
+                # # print(f" Set ref value to : {} ")
+                # opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+                # try:
+                #     mpc_sol = opti_mpc.solve();
+                #     robot.step(mpc_sol.value(robot_inputs[:,0]))
+                # except Exception as e:
+                #     print(f"********************************* Adaptive: MPC Failed ********************************")
+                #     # robot.step(mpc_sol.value(robot_inputs[:,0]))
+                #     adaptive_sim = False
                 
             
             # print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans)}, obs_dist: {np.min(h_curr_obstacles)} alpha_human:{mpc_sol.value(alpha_human)}")
