@@ -17,12 +17,14 @@ alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
 adapt_params = True
 
-first_order = False
+first_order = True
+mpc_horizon = 3 # 30 with first order CBF
 
 # Trust parameters
+alpha_max = 10.0
 alpha_der_max = 2.0#2.0#0.5
-h_min = 4.0 # 6.0 # 1.0
-min_dist = 2.0 # 2.0 # 1.0
+h_min = 2.0 # 6.0 # 1.0
+min_dist = 5.0 # 2.0 # 1.0
 
 movie_name = 'social-navigation/Videos/bicycle_corridor_second_order.mp4'
 paths_file = []#'social-navigation/paths.npy'
@@ -52,10 +54,9 @@ t = 0
 tf = 15.0
 dt = 0.05#0.05
 U_ref = np.array([2.0, 0.0]).reshape(-1,1)
-control_bound = np.array([2000.0, 20.0]).reshape(-1,1) # works if control input bound very large
-# control_bound = np.array([10.0, 5.0]).reshape(-1,1) # works if control input bound very large
+# control_bound = np.array([2000.0, 20.0]).reshape(-1,1) # works if control input bound very large
+control_bound = np.array([10.0, 5.0]).reshape(-1,1) # works if control input bound very large
 d_human = 0.3#0.5#0.5
-mpc_horizon = 6
 goal = np.array([-2.0, -1.3]).reshape(-1,1)
 
 pos_init = np.array([2.0,-2.0,np.pi/2, 0])
@@ -197,6 +198,8 @@ with writer.saving(fig, movie_name, 100):
                         opti_mpc.subject_to( h1_dot >= - alpha2_human[i] * h1 )
                         opti_mpc.subject_to( h1 >= 0 )
 
+                    
+
             ################ Collision avoidance with polytopic obstacles    
             # if (k>0):      
             #     lambda_o = opti_mpc.variable(len(obstacles),4)
@@ -225,8 +228,10 @@ with writer.saving(fig, movie_name, 100):
     # find control input ###############################          
     alpha_obstacle_diff = alpha_obstacle-alpha_nominal_obstacles
     alpha_humans_diff = alpha_human-alpha_nominal_humans
-    alpha1_humans_diff = alpha1_human-alpha_nominal_humans
-    alpha2_humans_diff = alpha2_human-10*alpha_nominal_humans
+    # alpha1_humans_diff = alpha1_human-alpha_nominal_humans
+    # alpha2_humans_diff = alpha2_human-20*alpha_nominal_humans
+    alpha1_humans_diff = alpha1_human-(1-alpha_nominal_humans*dt)
+    alpha2_humans_diff = alpha2_human-20*(1-alpha_nominal_humans*dt)
     objective += 10.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     # objective += 1.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     opti_mpc.minimize(objective)
@@ -379,8 +384,11 @@ with writer.saving(fig, movie_name, 100):
                     b = - alpha * h_curr_humans[i] - dh_dx_robot @ dx_dt_robot
                     trust, asserted = compute_trust( A, b, dx_dt_human, dx_dt_human_nominal, h_curr_humans[i], min_dist = min_dist, h_min = h_min )
                     alpha = max(0,alpha + alpha_der_max * trust)
+                    # if first_order:
                     robot.alpha_nominal[i] = max( 0, 1-alpha*dt )
-                    print(f"alphas: {robot.alpha_nominal}")
+                    # else:
+                    #     robot.alpha_nominal[i] = alpha
+                    # print(f"alphas: {robot.alpha_nominal}")
                     print(f"alpha: { np.min(robot.alpha_nominal) }, {np.max( robot.alpha_nominal )}")
             
             # Find control input
