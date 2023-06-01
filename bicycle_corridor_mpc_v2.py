@@ -11,19 +11,19 @@ from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 from trust_utils import compute_trust
 
-alpha_cbf_nominal_adaptive = 1.0#10.0#0.9#0.2#0.2 # red
-alpha_cbf_nominal_fixed = 1.0#1.0#0.9            # blue
+alpha_cbf_nominal_adaptive = 0.4#10.0#0.9#0.2#0.2 # red
+alpha_cbf_nominal_fixed = 0.4#1.0#0.9            # blue
 alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
 adapt_params = True
 
-first_order = True
+first_order = False
 mpc_horizon = 3 # 30 with first order CBF
 
 # Trust parameters
 alpha_max = 10.0
-alpha_der_max = 2.0#2.0#0.5
-h_min = 2.0 # 6.0 # 1.0
+alpha_der_max = 4.0#2.0#0.5
+h_min = 1.5 # 6.0 # 1.0
 min_dist = 5.0 # 2.0 # 1.0
 
 movie_name = 'social-navigation/Videos/bicycle_corridor_second_order.mp4'
@@ -83,7 +83,7 @@ humans.X[0,3] = -2.2; humans.X[1,3] = -0.6;
 humans.X[0,4] = -2.2; humans.X[1,4] = -1.9;
 
 humans.goals[0,0] =  4.0; humans.goals[1,0] = -1.5;
-humans.goals[0,1] =  4.0; humans.goals[1,1] = -0.9#-1.0;
+humans.goals[0,1] =  4.0; humans.goals[1,1] = -2.4#-1.0;
 humans.goals[0,2] =  4.0; humans.goals[1,2] = -1.6;
 humans.goals[0,3] =  4.0; humans.goals[1,3] = -0.6;
 humans.goals[0,4] =  4.0; humans.goals[1,4] = -1.9;
@@ -94,7 +94,7 @@ humans.render_plot(humans.X)
 # exit()
 
 humans.controls = np.zeros((2,num_people))
-humans.controls[0,0] = 0.0; humans.controls[1,0] = 1.0;
+humans.controls[0,0] = -0.2; humans.controls[1,0] = 1.0;
 humans.controls[0,1] = 0.0; humans.controls[1,1] = 0.5;
 humans.controls[0,2] = 0.0; humans.controls[1,2] = 0.5;
 humans.controls[0,3] = 0.0; humans.controls[1,3] = 1.0;
@@ -144,14 +144,14 @@ with writer.saving(fig, movie_name, 100):
             opti_mpc.subject_to( robot_inputs[:,k] <= control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_inputs[:,k] >= -control_bound*np.ones((2,1)) )
 
-            opti_mpc.subject_to( robot_states[3,k] >= -1.2)#-control_bound*np.ones((2,1)) )
-            opti_mpc.subject_to( robot_states[3,k] <= 1.2)#control_bound*np.ones((2,1)) )
+            opti_mpc.subject_to( robot_states[3,k] >= -0.5)#-control_bound*np.ones((2,1)) )
+            opti_mpc.subject_to( robot_states[3,k] <= 0.5)#control_bound*np.ones((2,1)) )
             # current state-input contribution to objective ####
             U_error = robot_inputs[:,k] - robot_input_ref 
             objective += 1 * cd.mtimes( U_error.T, U_error )
 
             goal_error = robot_states[0:2,k] - goal
-            objective += 10*cd.mtimes( goal_error.T, goal_error )
+            objective += 1*cd.mtimes( goal_error.T, goal_error )
 
         if 1:#(k > 0):
             ################ Collision avoidance with humans
@@ -231,7 +231,7 @@ with writer.saving(fig, movie_name, 100):
     # alpha1_humans_diff = alpha1_human-alpha_nominal_humans
     # alpha2_humans_diff = alpha2_human-20*alpha_nominal_humans
     alpha1_humans_diff = alpha1_human-(1-alpha_nominal_humans*dt)
-    alpha2_humans_diff = alpha2_human-20*(1-alpha_nominal_humans*dt)
+    alpha2_humans_diff = alpha2_human-30*(1-alpha_nominal_humans*dt)
     objective += 10.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     # objective += 1.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     opti_mpc.minimize(objective)
@@ -389,7 +389,7 @@ with writer.saving(fig, movie_name, 100):
                     # else:
                     #     robot.alpha_nominal[i] = alpha
                     # print(f"alphas: {robot.alpha_nominal}")
-                    print(f"alpha: { np.min(robot.alpha_nominal) }, {np.max( robot.alpha_nominal )}")
+                    
             
             # Find control input
             U_ref = robot.nominal_controller( goal )
@@ -408,6 +408,7 @@ with writer.saving(fig, movie_name, 100):
             try:
                 mpc_sol = opti_mpc.solve();
                 robot.step(mpc_sol.value(robot_inputs[:,0]))
+                print(f"alpha: { np.min(robot.alpha_nominal) }, {np.max( robot.alpha_nominal )}, ACTUAL ALPHA:{mpc_sol.value(alpha1_human)}")
                 # print(f" U_ref:{ U_ref.T }, U:{ robot.U.T } ")
             except Exception as e:
                 print(e)
