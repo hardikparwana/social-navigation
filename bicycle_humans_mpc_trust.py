@@ -20,10 +20,10 @@ adapt_params = True
 
 # Trust parameters
 alpha_der_max = 2.0#0.5
-h_min = 6.0 # 6.0 # 1.0
-min_dist = 2.0 # 2.0 # 1.0
+h_min = 10.0 # 6.0 # 1.0
+min_dist = 3.0 # 2.0 # 1.0
 
-movie_name = 'social-navigation/Videos/bicycle_humans_trust_trials2.mp4'
+movie_name = 'social-navigation/Videos/bicycle_humans_trust_2_6_10.mp4'
 paths_file = 'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
 
@@ -35,14 +35,14 @@ num_people = 10
 # Set Figure
 plt.ion()
 fig = plt.figure()
-ax = plt.axes(xlim=(-10,10), ylim=(-10,10))
+ax = plt.axes(xlim=(-8,6), ylim=(-6,8))
 ax.set_xlabel("X")
 ax.set_ylabel("Y")
 
 # Simulation Parameters
 t = 0
-tf = 40.0
-dt = 0.05
+tf = 15.0
+dt = 0.05#0.05
 U_ref = np.array([2.0, 0.0]).reshape(-1,1)
 control_bound = np.array([2000.0, 2000.0]).reshape(-1,1) # works if control input bound very large
 d_human = 0.5#0.5
@@ -64,7 +64,7 @@ humans = crowd(ax, crowd_center = np.array([0,0]), num_people = num_people, dt =
 h_curr_humans = np.zeros(num_people)
 
 metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
-writer = FFMpegWriter(fps=15, metadata=metadata)
+writer = FFMpegWriter(fps=10, metadata=metadata)
 
 with writer.saving(fig, movie_name, 100): 
     
@@ -124,21 +124,21 @@ with writer.saving(fig, movie_name, 100):
                     # First order CBF condition
                      opti_mpc.subject_to( h >= alpha_human[i]**k * h_human[i] ) # CBF constraint # h_human is based on current state
                     
-                    # Second order CBF condition in continuous time
-                    #robot_state_dot = robot.f_casadi(robot_states[:,k]) + cd.mtimes( robot.g_casadi(robot_states[:,k]), robot_inputs[:,k]  )
-                    #dist_dot = robot_state_dot[0:2] - human_states_dot_horizon[0:2,i]
-                    #dist_ddot = (robot.f_xddot_casadi(robot_states[:,k]) + cd.mtimes(robot.g_xddot_casadi(robot_states[:,k]), robot_inputs[:,k] ))[0:2,0]
-                    #h_dot  = 2*cd.mtimes(dist.T, dist_dot )
-                    #h_ddot = 2 * cd.mtimes( dist.T, dist_ddot ) + 2 * cd.mtimes( dist_dot.T, dist_dot )
-                    #h1 = h_dot + alpha1_human[i]**k * h_human[i]
+                    # # Second order CBF condition in continuous time
+                    # robot_state_dot = robot.f_casadi(robot_states[:,k]) + cd.mtimes( robot.g_casadi(robot_states[:,k]), robot_inputs[:,k]  )
+                    # dist_dot = robot_state_dot[0:2] - human_states_dot_horizon[0:2,i]
+                    # dist_ddot = (robot.f_xddot_casadi(robot_states[:,k]) + cd.mtimes(robot.g_xddot_casadi(robot_states[:,k]), robot_inputs[:,k] ))[0:2,0]
+                    # h_dot  = 2*cd.mtimes(dist.T, dist_dot )
+                    # h_ddot = 2 * cd.mtimes( dist.T, dist_ddot ) + 2 * cd.mtimes( dist_dot.T, dist_dot )
+                    # h1 = h_dot + alpha1_human[i]**k * h_human[i]
                     # opti_mpc.subject_to( alpha1_human[i] == alpha_nominal_humans[i] )
-                    #h1_dot = h_ddot
-                    #opti_mpc.subject_to( h1_dot >= - alpha2_human[i] * h1 )
+                    # h1_dot = h_ddot
+                    # opti_mpc.subject_to( h1_dot >= - alpha2_human[i] * h1 )
                     
                     # if (k>0):
                     #     opti_mpc.subject_to( h1 >= 0 )
 
-                    # Second order CBF condition in discrete time
+                    # # Second order CBF condition in discrete time
                     # robot_state_dot = (robot_states[:,k+1] - robot_states[:,k])/dt
                     # dist_dot = robot_state_dot[0:2] - human_states_dot_horizon[0:2,i]
                     # dist_ddot = (robot.f_xddot_casadi(robot_states[:,k]) + cd.mtimes(robot.g_xddot_casadi(robot_states[:,k]), robot_inputs[:,k] ))[0:2,0]

@@ -25,6 +25,7 @@ class crowd:
                 self.X0[0,i] = np.clip( self.X0[0,i], 5, 20 )
         self.X = np.copy(self.X0)
         self.U = np.zeros((2,num_people))
+        self.goals = np.zeros((2,num_people))
         self.dt = dt
         self.horizon = horizon
         self.ax = ax
@@ -42,6 +43,8 @@ class crowd:
             # Animate trajectories
             self.body = self.ax.scatter(self.paths[0,0: self.num_people], self.paths[1,0: self.num_people],c='g',alpha=0.5,s=50)#50
             self.plot_counter = 1
+        else:
+            self.body = self.ax.scatter(self.X[0,0: self.num_people], self.X[1,0: self.num_people],c='g',alpha=0.5,s=50)#50
             
         self.distance_to_polytope = cd.Opti()
         self.A = self.distance_to_polytope.parameter(4,2)
@@ -59,6 +62,17 @@ class crowd:
     # def render_plot(self):
     #     self.body.set_offsets(self.paths[:,self.plot_counter*self.num_people: (self.plot_counter+1)*self.num_people].T)
     #     self.plot_counter = self.plot_counter + 1
+
+    def step_using_controls(self, dt):
+        self.X = self.X + self.controls * dt
+
+    def get_future_states_with_input(self, dt, horizon):
+        states = np.copy(self.X)
+        for t in range(horizon):
+            next_states = states[:,-self.num_people:] + self.controls * dt
+            states = np.append(states, next_states, axis=1)
+        return states
+
         
     def get_future_states(self,t,dt,mpc_horizon):
         states = np.copy(self.X)
@@ -99,8 +113,11 @@ class crowd:
 
     def render_plot_trust(self, current_pos, alphas):
         self.body.remove()
-        print(f"{1.0-alphas}")
-        self.body = self.ax.scatter(current_pos[0,:], current_pos[1,:],c=(1.0-alphas),alpha=0.5,s=50, cmap='RdYlGn')#50
+        # print(f"{1.0-alphas}")
+        poses = np.append( current_pos, np.array([ [40, 40], [40, 40] ]), axis=1 )
+        c = np.append(1-alphas, np.array([0.0, 1.0]))
+        # self.body = self.ax.scatter(current_pos[0,:], current_pos[1,:],c=(1.0-alphas),alpha=0.5,s=50, cmap='RdYlGn')#50
+        self.body = self.ax.scatter(poses[0,:], poses[1,:],c=c,alpha=0.5,s=50, cmap='RdYlGn')#50
             
     def plan_paths(self, obstacles):
         # Use MPC to plan paths for all humans in centralized manner
@@ -156,8 +173,8 @@ class crowd:
             potential = 0;
             force = 0
         
-        if (dist < min_dist):
-            print(f"Violated, dist:{dist}")
+        # if (dist < min_dist):
+            # print(f"Violated, dist:{dist}")
             # exit()
         return k * force        
     

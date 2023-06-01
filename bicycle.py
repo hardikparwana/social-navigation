@@ -24,8 +24,8 @@ class bicycle:
         self.dt = dt
         self.ax = ax
         
-        self.width = 0.4
-        self.height = 0.4
+        self.width = 0.3#0.4
+        self.height = 0.3#0.4
         self.A, self.b = self.base_polytopic_location()
         
         # Plot handles
@@ -76,6 +76,7 @@ class bicycle:
 
         self.U = U.reshape(-1,1)
         self.X = self.X + ( self.f() + self.g() @ self.U )*self.dt
+        self.X[2,0] = wrap_angle(self.X[2,0])
         self.render_plot()
         self.Xs = np.append(self.Xs,self.X,axis=1)
         self.Us = np.append(self.Us,self.U,axis=1)
@@ -126,15 +127,15 @@ class bicycle:
         return A, b_f, b_g*self.dt
 
     def nominal_controller(self, targetX):
-        k_omega = 2.0 
-        k_v = 0.15##5.0#0.15
+        k_omega = 10.0#2.0 
+        k_v = 2.0#0.3#0.15##5.0#0.15
         distance = np.linalg.norm( self.X[0:2]-targetX[0:2] )
         desired_heading = np.arctan2( targetX[1,0]-self.X[1,0], targetX[0,0]-self.X[0,0] )
         error_heading = wrap_angle( desired_heading - self.X[2,0] )
 
         omega = k_omega * error_heading
         speed = k_v * distance * np.cos(error_heading)
-        u_r = k_v * ( speed - self.X[3,0] )
+        u_r = 1.0 * k_v * ( speed - self.X[3,0] )
         return np.array([u_r, omega]).reshape(-1,1)
 
         
