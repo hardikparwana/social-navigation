@@ -135,7 +135,7 @@ class bicycle:
 
         omega = k_omega * error_heading
         speed = k_v * distance * np.cos(error_heading)
-        u_r = 3.0 * k_v * ( speed - self.X[3,0] )
+        u_r = 1.0 * k_v * ( speed - self.X[3,0] )
         return np.array([u_r, omega]).reshape(-1,1)
 
         

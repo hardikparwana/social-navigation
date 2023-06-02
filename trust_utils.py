@@ -26,7 +26,7 @@ def compute_trust(A,b,xdotj,xdotj_nominal,h,min_dist = 1.0,h_min = 1.0): # h > 0
     # if (theta_ns<0.05):
     #     theta_ns = 0.05
 
-    rho_theta = np.tanh(theta_ns/theta_as*0.9) #0.55 # if it is close to it's nominal, then trust high. if far away from it's nominal, then trust low     
+    rho_theta = np.tanh(theta_ns/theta_as*0.9) #0.9##0.55 # if it is close to it's nominal, then trust high. if far away from it's nominal, then trust low     
     # print(f"rho_dist:{rho_dist}")
     if rho_dist>min_dist: # always positive
         trust = 3*rho_theta*rho_dist#(rho_dist-min_dist)
@@ -35,7 +35,7 @@ def compute_trust(A,b,xdotj,xdotj_nominal,h,min_dist = 1.0,h_min = 1.0): # h > 0
             trust = 3*rho_theta*rho_dist
         else:  # definitely negative this time
             trust = -2*(1-rho_theta)*rho_dist
-            print(f"Negative Trust! h: {h}, h_min:{h_min}")
+            # print(f"Negative Trust! h: {h}, h_min:{h_min}")
             
             
     asserted = True

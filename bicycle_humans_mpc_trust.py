@@ -20,10 +20,10 @@ adapt_params = True
 
 # Trust parameters
 alpha_der_max = 2.0#0.5
-h_min = 10.0 # 6.0 # 1.0
+h_min = 6.0 # 6.0 # 1.0
 min_dist = 3.0 # 2.0 # 1.0
 
-movie_name = 'social-navigation/Videos/bicycle_humans_trust_2_6_10.mp4'
+movie_name = 'social-navigation/Videos/bicycle_humans_trust_test.mp4'
 paths_file = 'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
 
@@ -35,7 +35,7 @@ num_people = 10
 # Set Figure
 plt.ion()
 fig = plt.figure()
-ax = plt.axes(xlim=(-8,6), ylim=(-6,8))
+ax = plt.axes(xlim=(-9,7), ylim=(-7,9))
 ax.set_xlabel("X")
 ax.set_ylabel("Y")
 
@@ -44,9 +44,9 @@ t = 0
 tf = 15.0
 dt = 0.05#0.05
 U_ref = np.array([2.0, 0.0]).reshape(-1,1)
-control_bound = np.array([2000.0, 2000.0]).reshape(-1,1) # works if control input bound very large
-d_human = 0.5#0.5
-mpc_horizon = 6
+control_bound = np.array([20.0, 2000.0]).reshape(-1,1) # works if control input bound very large
+d_human = 0.4#0.5
+mpc_horizon = 5 
 goal = np.array([-7.5, 7.5]).reshape(-1,1)
 
 pos_init = np.array([2.0,-2.0,np.pi/2, 0])
@@ -107,6 +107,9 @@ with writer.saving(fig, movie_name, 100):
             # current state-input contribution to objective ####
             U_error = robot_inputs[:,k] - robot_input_ref 
             objective += 10 * cd.mtimes( U_error.T, U_error )
+
+            goal_error = robot_states[0:2,k] - goal
+            objective += 10*cd.mtimes( goal_error.T, goal_error )
         
         if 1:#(k > 0):
             ################ Collision avoidance with humans
@@ -204,15 +207,16 @@ with writer.saving(fig, movie_name, 100):
                 robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
             except Exception as e:
                 print(e)
-                u_temp = np.array([[-10000],[0]])
-                opti_mpc.set_value(robot_input_ref, u_temp)
-                opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
-                try:
-                    mpc_sol = opti_mpc.solve();
-                    robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
-                except Exception as e:
-                    print(f"************************** Nominal: MPC failed ********************************")
-                    nominal_sim = False
+                nominal_sim = False
+                # u_temp = np.array([[-10000],[0]])
+                # opti_mpc.set_value(robot_input_ref, u_temp)
+                # opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+                # try:
+                #     mpc_sol = opti_mpc.solve();
+                #     robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
+                # except Exception as e:
+                #     print(f"************************** Nominal: MPC failed ********************************")
+                #     nominal_sim = False
             
             # print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans)}, obs_dist: {np.min(h_curr_obstacles)} alpha_human:{mpc_sol.value(alpha_human)}")
             robot_nominal.render_plot()
@@ -261,15 +265,16 @@ with writer.saving(fig, movie_name, 100):
                 robot.step(mpc_sol.value(robot_inputs[:,0]))
             except Exception as e:
                 print(e)
-                u_temp = np.array([[-100],[0]])
-                opti_mpc.set_value(robot_input_ref, u_temp)
-                opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
-                try:
-                    mpc_sol = opti_mpc.solve();
-                    robot.step(mpc_sol.value(robot_inputs[:,0]))
-                except Exception as e:
-                    print(f"********************************* Adaptive: MPC Failed ********************************")
-                    adaptive_sim = False
+                adaptive_sim = False
+                # u_temp = np.array([[-100],[0]])
+                # opti_mpc.set_value(robot_input_ref, u_temp)
+                # opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+                # try:
+                #     mpc_sol = opti_mpc.solve();
+                #     robot.step(mpc_sol.value(robot_inputs[:,0]))
+                # except Exception as e:
+                #     print(f"********************************* Adaptive: MPC Failed ********************************")
+                #     adaptive_sim = False
                 
             
             # print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans)}, obs_dist: {np.min(h_curr_obstacles)} alpha_human:{mpc_sol.value(alpha_human)}")

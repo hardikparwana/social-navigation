@@ -24,7 +24,7 @@ alpha_der_max = 2.0#0.5
 h_min = 4.0 # 6.0 # 1.0
 min_dist = 2.0 # 2.0 # 1.0
 
-movie_name = 'social-navigation/Videos/bicycle_corridor_test.mp4'
+movie_name = 'social-navigation/Videos/bicycle_slow_down_demo_improve.mp4'
 paths_file = []#'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
 
@@ -49,12 +49,12 @@ obstacles.append( rectangle( ax, pos = np.array([-3.2,1.0]), height = 7.0 ) )
 
 # Simulation Parameters
 t = 0
-tf = 15.0
+tf = 17.0
 dt = 0.05#0.05
 U_ref = np.array([2.0, 0.0]).reshape(-1,1)
 control_bound = np.array([2000.0, 20.0]).reshape(-1,1) # works if control input bound very large
 d_human = 0.3#0.5#0.5
-mpc_horizon = 3
+mpc_horizon = 6
 goal = np.array([-2.0, -0.5]).reshape(-1,1)
 
 pos_init = np.array([2.0,-2.0,np.pi/2, 0])
@@ -140,8 +140,8 @@ with writer.saving(fig, movie_name, 100):
             opti_mpc.subject_to( robot_inputs[:,k] <= control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_inputs[:,k] >= -control_bound*np.ones((2,1)) )
 
-            opti_mpc.subject_to( robot_states[3,k] >= -1.2)#-control_bound*np.ones((2,1)) )
-            opti_mpc.subject_to( robot_states[3,k] <= 1.2)#control_bound*np.ones((2,1)) )
+            opti_mpc.subject_to( robot_states[3,k] >= -0.5)#-control_bound*np.ones((2,1)) )
+            opti_mpc.subject_to( robot_states[3,k] <= 0.5)#control_bound*np.ones((2,1)) )
             # current state-input contribution to objective ####
             U_error = robot_inputs[:,k] - robot_input_ref 
             objective += 1 * cd.mtimes( U_error.T, U_error )
@@ -312,7 +312,7 @@ with writer.saving(fig, movie_name, 100):
                     trust, asserted = compute_trust( A, b, dx_dt_human, dx_dt_human_nominal, h_curr_humans[i], min_dist = min_dist, h_min = h_min )
                     alpha = max(0,alpha + alpha_der_max * trust)
                     robot.alpha_nominal[i] = max( 0, 1-alpha*dt )
-                    print(f"alpha: { np.min(robot.alpha_nominal) }, {np.max( robot.alpha_nominal )}")
+                    # print(f"alpha: { np.min(robot.alpha_nominal) }, {np.max( robot.alpha_nominal )}")
             
             # Find control input
             U_ref = robot.nominal_controller( goal )

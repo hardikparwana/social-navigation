@@ -11,23 +11,23 @@ from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 from trust_utils import compute_trust, compute_trust2
 
-alpha_cbf_nominal_adaptive = 0.0#10.0#0.9#0.2#0.2 # red
-alpha_cbf_nominal_fixed = 0.0#1.0#0.9            # blue
+alpha_cbf_nominal_adaptive = 0.8#10.0#0.9#0.2#0.2 # red
+alpha_cbf_nominal_fixed = 0.8#1.0#0.9            # blue
 alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
 adapt_params = True
 
-first_order = False
-mpc_horizon = 3#40 # 30 with first order CBF
+first_order = True
+mpc_horizon = 5#3#40 # 30 with first order CBF
 
 # Trust parameters
 alpha_max = 10.0
-alpha_der_max = 4.0#2.0#0.5
+alpha_der_max = 40.0#2.0#0.5
 h_min = 1.5 # 6.0 # 1.0
 min_dist = 5.0 # 2.0 # 1.0
 
-# movie_name = 'social-navigation/Videos/bicycle_corridor_second_order.mp4'
-movie_name = 'Videos/bicycle_corridor_test.mp4'
+movie_name = 'social-navigation/Videos/bicycle_corridor_new.mp4'
+# movie_name = 'Videos/bicycle_corridor_test.mp4'
 paths_file = []#'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
 
@@ -70,7 +70,7 @@ robot = bicycle(ax, pos = pos_init, dt = dt, color = 'red', alpha_nominal = alph
 
 plt.legend(loc='upper right')
 
-dt_human = 0.5 #0.2
+dt_human = 0.04 #0.2
 tf_human = 10#40.0
 horizon_human = int(tf_human/dt_human)
 humans = crowd(ax, crowd_center = np.array([0,0]), num_people = num_people, dt = dt_human, horizon = horizon_human, paths_file = paths_file)#social-navigation/
@@ -132,6 +132,7 @@ with writer.saving(fig, movie_name, 100):
     opti_mpc.subject_to( alpha_human <= 0.99*np.ones(num_people) )
     opti_mpc.subject_to( alpha1_human >= np.zeros(num_people) )
     opti_mpc.subject_to( alpha2_human >= np.zeros(num_people) )
+    opti_mpc.subject_to( alpha_obstacle >= np.zeros(len(obstacles)) )
         
     ## Initial state constraint 
     opti_mpc.subject_to( robot_states[:,0] == robot_current_state )
@@ -153,7 +154,7 @@ with writer.saving(fig, movie_name, 100):
             opti_mpc.subject_to( robot_inputs[:,k] <= control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_inputs[:,k] >= -control_bound*np.ones((2,1)) )
 
-            u_bound = 0.5
+            u_bound = 0.5#1.2#0.5
             opti_mpc.subject_to( robot_states[3,k] >= -u_bound)#-control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_states[3,k] <= u_bound)#control_bound*np.ones((2,1)) )
             # current state-input contribution to objective ####
@@ -163,7 +164,7 @@ with writer.saving(fig, movie_name, 100):
             goal_error = robot_states[0:2,k] - goal
             objective += 10*cd.mtimes( goal_error.T, goal_error )
 
-        if 1:#(k > 0):
+        if (k > 0): # k=0 makes it infeasible with second order
             ################ Collision avoidance with humans
             human_states_horizon = humans_state[0:2, k*num_people:(k+1)*num_people]
             # human_states_dot_horizon = humans_state_dot[0:2, k*num_people:(k+1)*num_people]
@@ -244,26 +245,26 @@ with writer.saving(fig, movie_name, 100):
                     opti_mpc.subject_to( lambda_o[i,:] >= 0 ) 
                     opti_mpc.subject_to( lambda_r[i,:] >= 0 )
 
-                Rot = cd.hcat( [  
-                    cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
-                    cd.vcat( [-cd.sin(robot_states[2,k]), cd.cos(robot_states[2,k]) ] )
-                    ] )        
-                A_r = robot.A @ Rot
-                b_r = cd.mtimes(cd.mtimes(robot.A, Rot), robot_states[0:2,k]) + robot.b
+                # Rot = cd.hcat( [  
+                #     cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
+                #     cd.vcat( [-cd.sin(robot_states[2,k]), cd.cos(robot_states[2,k]) ] )
+                #     ] )        
+                # A_r = robot.A @ Rot
+                # b_r = cd.mtimes(cd.mtimes(robot.A, Rot), robot_states[0:2,k]) + robot.b
 
-                Rot_prev = cd.hcat( [  
-                    cd.vcat( [ cd.cos(robot_states[2,k-1]), cd.sin(robot_states[2,k-1]) ] ),
-                    cd.vcat( [-cd.sin(robot_states[2,k-1]), cd.cos(robot_states[2,k-1]) ] )
-                    ] )        
-                A_r_prev = robot.A @ Rot_prev
-                b_r_prev = cd.mtimes(cd.mtimes(robot.A, Rot_prev), robot_states[0:2,k-1]) + robot.b
-                for i in range(len(obstacles)):
-                    A_o, b_o = obstacles[i].polytopic_location()
-                    lambda_bound = cd.fmax(1.0, 2*h_obstacles[i])     
+                # Rot_prev = cd.hcat( [  
+                #     cd.vcat( [ cd.cos(robot_states[2,k-1]), cd.sin(robot_states[2,k-1]) ] ),
+                #     cd.vcat( [-cd.sin(robot_states[2,k-1]), cd.cos(robot_states[2,k-1]) ] )
+                #     ] )        
+                # A_r_prev = robot.A @ Rot_prev
+                # b_r_prev = cd.mtimes(cd.mtimes(robot.A, Rot_prev), robot_states[0:2,k-1]) + robot.b
+                # for i in range(len(obstacles)):
+                #     A_o, b_o = obstacles[i].polytopic_location()
+                #     lambda_bound = cd.fmax(1.0, 2*h_obstacles[i])     
 
-                    h = - cd.mtimes(lambda_o[i][i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) 
-                    h = - cd.mtimes(lambda_o[i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) 
-                    # h_next = 
+                #     h = - cd.mtimes(lambda_o[i][i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) 
+                #     h = - cd.mtimes(lambda_o[i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) 
+                #     # h_next = 
 
 
             
@@ -277,7 +278,7 @@ with writer.saving(fig, movie_name, 100):
     objective += 10.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     # objective += 1.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     opti_mpc.minimize(objective)
-        
+    # 30, 10 works with dt=0.05
     option_mpc = {"verbose": False, "ipopt.print_level": 0, "print_time": 0}
     opti_mpc.solver("ipopt", option_mpc)
         

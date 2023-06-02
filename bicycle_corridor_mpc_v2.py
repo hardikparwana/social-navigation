@@ -26,8 +26,8 @@ alpha_der_max = 4.0#2.0#0.5
 h_min = 1.5 # 6.0 # 1.0
 min_dist = 5.0 # 2.0 # 1.0
 
-# movie_name = 'social-navigation/Videos/bicycle_corridor_second_order.mp4'
-movie_name = 'Videos/bicycle_corridor_test.mp4'
+movie_name = 'social-navigation/Videos/bicycle_corridor_second_order.mp4'
+# movie_name = 'Videos/bicycle_corridor_v2_test.mp4'
 paths_file = []#'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
 
