@@ -10,23 +10,24 @@ from obstacles import rectangle
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 from trust_utils import compute_trust, compute_trust2
+from humansocialforce import *
 
 alpha_cbf_nominal_adaptive = 0.8#10.0#0.9#0.2#0.2 # red
 alpha_cbf_nominal_fixed = 0.8#1.0#0.9            # blue
 alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
-adapt_params = True
+adapt_params = False
 
 first_order = False
-mpc_horizon = 5#3#40 # 30 with first order CBF
+mpc_horizon = 2#5#40 # 30 with first order CBF
 
 # Trust parameters
 alpha_max = 10.0
-alpha_der_max = 40.0#2.0#0.5
-h_min = 1.5 # 6.0 # 1.0
-min_dist = 5.0 # 2.0 # 1.0
+alpha_der_max = 20.0#2.0#0.5
+h_min = 1.0 # 6.0 # 1.0
+min_dist = 1.0 # 2.0 # 1.0
 
-movie_name = 'social-navigation/Videos/bicycle_corridor_new.mp4'
+movie_name = 'social-navigation/Videos/bicycle_socialforce.mp4'
 # movie_name = 'Videos/bicycle_corridor_test.mp4'
 paths_file = []#'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
@@ -90,6 +91,12 @@ humans.goals[0,3] =  4.0; humans.goals[1,3] = -0.6;
 humans.goals[0,4] =  4.0; humans.goals[1,4] = -1.9;
 
 humans.render_plot(humans.X)
+
+socialforce_initial_state = np.append( np.append( np.copy( humans.X.T ), 0*np.copy( humans.X.T ) , axis = 1 ), humans.goals.T, axis=1   )
+#attach robot state
+robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]]).reshape(1,-1)
+socialforce_initial_state = np.append( socialforce_initial_state, robot_social_state, axis=0 )
+humans_socialforce = socialforce.Simulator( socialforce_initial_state, delta_t = dt )
 
 # plt.show()
 # exit()
@@ -275,7 +282,7 @@ with writer.saving(fig, movie_name, 100):
     # alpha2_humans_diff = alpha2_human-20*alpha_nominal_humans
     alpha1_humans_diff = alpha1_human-(1-alpha_nominal_humans*dt)
     alpha2_humans_diff = alpha2_human-30*(1-alpha_nominal_humans*dt)
-    objective += 10.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
+    objective += 30.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 30.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 30.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     # objective += 1.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     opti_mpc.minimize(objective)
     # 30, 10 works with dt=0.05
@@ -318,22 +325,26 @@ with writer.saving(fig, movie_name, 100):
     while t < tf:
         
         # Control Humans
-        for i in range(num_people):
-            force  = 0
-            force += humans.attractive_potential( humans.X[:,i].reshape(-1,1), humans.goals[:,i].reshape(-1,1) )
-            for j in range(num_people):
-                if j==i:
-                    continue
-                force += humans.repulsive_potential( humans.X[:,i].reshape(-1,1), humans.X[:,i].reshape(-1,1) )
-            if np.linalg.norm(force)>max_speed:
-                force = force / np.linalg.norm(force) * max_speed
-            humans.controls[0,i] = force[0,0]
-            humans.controls[1,i] = force[1,0]
+        # for i in range(num_people):
+        #     force  = 0
+        #     force += humans.attractive_potential( humans.X[:,i].reshape(-1,1), humans.goals[:,i].reshape(-1,1) )
+        #     for j in range(num_people):
+        #         if j==i:
+        #             continue
+        #         force += humans.repulsive_potential( humans.X[:,i].reshape(-1,1), humans.X[:,i].reshape(-1,1) )
+        #     if np.linalg.norm(force)>max_speed:
+        #         force = force / np.linalg.norm(force) * max_speed
+        #     humans.controls[0,i] = force[0,0]
+        #     humans.controls[1,i] = force[1,0]
+
+        # Control humans social force
+        robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]])
+        humans_socialforce.state[-1,0:6] = robot_social_state
+        humans.controls = humans_socialforce.step().state.copy()[:-1,2:4].copy().T
 
         human_positions = np.copy(humans.X)
-        human_future_positions = humans.get_future_states_with_input(dt,mpc_horizon)
+        human_future_positions = humans.get_future_states_with_input(dt,mpc_horizon)       
         human_speeds = np.copy(humans.controls)
-
         humans.step_using_controls(dt)
 
         # Adaptive / more conservative
@@ -378,19 +389,19 @@ with writer.saving(fig, movie_name, 100):
             except Exception as e:
                 print(e)
                 print(f"********************************* Fixed: MPC Failed ********************************")
-                nominal_sim = False
-                # # exit()
-                # u_temp = np.array([[-20],[0]])
-                # opti_mpc.set_value(robot_input_ref, u_temp)
-                # # print(f" Set ref value to : {} ")
-                # opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
-                # try:
-                #     mpc_sol = opti_mpc.solve();
-                #     robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
-                # except Exception as e:
-                    # print(f"********************************* Fixed: MPC Failed ********************************")
-                #     # robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
-                    # nominal_sim = False
+                # nominal_sim = False
+                # exit()
+                u_temp = np.array([[-20],[0]])
+                opti_mpc.set_value(robot_input_ref, u_temp)
+                # print(f" Set ref value to : {} ")
+                opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+                try:
+                    mpc_sol = opti_mpc.solve();
+                    robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
+                except Exception as e:
+                    print(f"********************************* Fixed: MPC Failed ********************************")
+                    # robot_nominal.step(mpc_sol.value(robot_inputs[:,0]))
+                    nominal_sim = False
                 
 
                 
@@ -433,7 +444,7 @@ with writer.saving(fig, movie_name, 100):
                     robot.alpha_nominal[i] = max( 0, 1-alpha*dt )
                     # else:
                     #     robot.alpha_nominal[i] = alpha
-                    # print(f"alphas: {robot.alpha_nominal}")
+                print(f"alphas: {robot.alpha_nominal}")
                     
             
             # Find control input
@@ -482,20 +493,19 @@ with writer.saving(fig, movie_name, 100):
             except Exception as e:
                 print(e)
                 print(f"********************************* Adaptive: MPC Failed ********************************")
-                adaptive_sim = False
-                # exit()
                 # adaptive_sim = False
-                # u_temp = np.array([[-20],[0]])
-                # opti_mpc.set_value(robot_input_ref, u_temp)
-                # # print(f" Set ref value to : {} ")
-                # opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
-                # try:
-                #     mpc_sol = opti_mpc.solve();
-                #     robot.step(mpc_sol.value(robot_inputs[:,0]))
-                # except Exception as e:
-                #     print(f"********************************* Adaptive: MPC Failed ********************************")
-                #     # robot.step(mpc_sol.value(robot_inputs[:,0]))
-                #     adaptive_sim = False
+                # exit()
+                u_temp = np.array([[-20],[0]])
+                opti_mpc.set_value(robot_input_ref, u_temp)
+                # print(f" Set ref value to : {} ")
+                opti_mpc.set_initial( robot_inputs, np.repeat( u_temp, mpc_horizon, 1 ) ) 
+                try:
+                    mpc_sol = opti_mpc.solve();
+                    robot.step(mpc_sol.value(robot_inputs[:,0]))
+                except Exception as e:
+                    print(f"********************************* Adaptive: MPC Failed ********************************")
+                    # robot.step(mpc_sol.value(robot_inputs[:,0]))
+                    adaptive_sim = False
                 
             
             # print(f"t: {t} U: {robot.U.T}, human_dist:{ np.min(h_curr_humans)}, obs_dist: {np.min(h_curr_obstacles)} alpha_human:{mpc_sol.value(alpha_human)}")
