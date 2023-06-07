@@ -1,6 +1,9 @@
 # first order barrier: works very bad!! mpc cannot find a solution
 # let's try some other barrier: 2nd order barrier
 
+# Notes:
+#1. different behaviour if weight on alpha-alpha_nominal is increased
+
 import numpy as np
 # import cvxpy as cp  
 import casadi as cd
@@ -16,10 +19,10 @@ alpha_cbf_nominal_adaptive = 0.8#10.0#0.9#0.2#0.2 # red
 alpha_cbf_nominal_fixed = 0.3#1.0#0.9            # blue
 alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
-adapt_params = True
+adapt_params = False
 
 first_order = False
-mpc_horizon = 3#5#40 # 30 with first order CBF
+mpc_horizon = 2#5#40 # 30 with first order CBF
 
 # Trust parameters
 alpha_max = 10.0
@@ -272,8 +275,6 @@ with writer.saving(fig, movie_name, 100):
                 #     h = - cd.mtimes(lambda_o[i][i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) 
                 #     h = - cd.mtimes(lambda_o[i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) 
                 #     # h_next = 
-
-
             
     # find control input ###############################          
     alpha_obstacle_diff = alpha_obstacle-alpha_nominal_obstacles

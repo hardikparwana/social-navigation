@@ -1,5 +1,6 @@
 # first order barrier: works very bad!! mpc cannot find a solution
 # let's try some other barrier: 2nd order barrier
+# different from 4: higher weights for alpha error
 
 import numpy as np
 # import cvxpy as cp  
@@ -12,11 +13,12 @@ from crowd import crowd
 from trust_utils import compute_trust, compute_trust2
 from humansocialforce import *
 
+# if initial conservative, both work
 alpha_cbf_nominal_adaptive = 0.8#10.0#0.9#0.2#0.2 # red
 alpha_cbf_nominal_fixed = 0.8#1.0#0.9            # blue
 alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
-adapt_params = False
+adapt_params = True
 
 first_order = False
 mpc_horizon = 2#5#40 # 30 with first order CBF
@@ -25,7 +27,7 @@ mpc_horizon = 2#5#40 # 30 with first order CBF
 alpha_max = 10.0
 alpha_der_max = 20.0#2.0#0.5
 h_min = 1.0 # 6.0 # 1.0
-min_dist = 1.0 # 2.0 # 1.0
+min_dist = 5.0#1.0 # 2.0 # 1.0
 
 movie_name = 'social-navigation/Videos/bicycle_socialforce.mp4'
 # movie_name = 'Videos/bicycle_corridor_test.mp4'
@@ -161,7 +163,7 @@ with writer.saving(fig, movie_name, 100):
             opti_mpc.subject_to( robot_inputs[:,k] <= control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_inputs[:,k] >= -control_bound*np.ones((2,1)) )
 
-            u_bound = 0.5#1.2#0.5
+            u_bound = 1.2#0.5#1.2#0.5
             opti_mpc.subject_to( robot_states[3,k] >= -u_bound)#-control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_states[3,k] <= u_bound)#control_bound*np.ones((2,1)) )
             # current state-input contribution to objective ####
@@ -338,7 +340,8 @@ with writer.saving(fig, movie_name, 100):
         #     humans.controls[1,i] = force[1,0]
 
         # Control humans social force
-        robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]])
+        # robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]])
+        robot_social_state = np.array([ robot_nominal.X[0,0], robot_nominal.X[1,0], robot_nominal.X[3,0]*np.cos(robot_nominal.X[2,0]), robot_nominal.X[3,0]*np.sin(robot_nominal.X[2,0]) , goal[0,0], goal[1,0]])
         humans_socialforce.state[-1,0:6] = robot_social_state
         humans.controls = humans_socialforce.step().state.copy()[:-1,2:4].copy().T
 
