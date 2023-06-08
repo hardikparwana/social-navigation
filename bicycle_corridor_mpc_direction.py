@@ -21,7 +21,7 @@ h_offset = 0.07#0.07
 adapt_params = True
 
 first_order = True
-mpc_horizon = 5#2#40 # 30 with first order CBF
+mpc_horizon = 5#5#40 # 30 with first order CBF
 
 # Trust parameters
 alpha_max = 10.0
@@ -29,7 +29,7 @@ alpha_der_max = 20.0#2.0#0.5
 h_min = 1.0 # 6.0 # 1.0
 min_dist = 5.0#1.0 # 2.0 # 1.0
 
-movie_name = 'social-navigation/Videos/bicycle_socialforce.mp4'
+movie_name = 'social-navigation/Videos/bicycle_direction_bias.mp4'
 # movie_name = 'Videos/bicycle_corridor_test.mp4'
 paths_file = []#'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
@@ -58,8 +58,8 @@ t = 0
 tf = 15.0
 dt = 0.05#0.05
 U_ref = np.array([2.0, 0.0]).reshape(-1,1)
-# control_bound = np.array([2000.0, 20.0]).reshape(-1,1) # works if control input bound very large
-control_bound = np.array([10.0, 5.0]).reshape(-1,1) # works if control input bound very large
+control_bound = np.array([2000.0, 20.0]).reshape(-1,1) # works if control input bound very large
+# control_bound = np.array([10.0, 5.0]).reshape(-1,1) # works if control input bound very large
 d_human = 0.3#0.5#0.5
 goal = np.array([-2.0, -1.3]).reshape(-1,1)
 
@@ -129,6 +129,7 @@ with writer.saving(fig, movie_name, 100):
     alpha_nominal_humans = opti_mpc.parameter(num_people)
     alpha_nominal_obstacles = opti_mpc.parameter(len(obstacles))
     slack_obstacles = opti_mpc.parameter(1)
+    human_heading_angle = opti_mpc.parameter(num_people)
     
     # Variables to solve for
     robot_states = opti_mpc.variable(robot.X.shape[0], mpc_horizon+1)
@@ -156,6 +157,9 @@ with writer.saving(fig, movie_name, 100):
     for i in range(len(obstacles)):
         lambda_o.append( opti_mpc.variable(len(obstacles),4) )
         lambda_r.append( opti_mpc.variable(len(obstacles),4) )
+
+    human_heading_bias = np.pi/3
+    
     
     for k in range(mpc_horizon+1): # +1 For loop over time horizon
         
@@ -165,7 +169,7 @@ with writer.saving(fig, movie_name, 100):
             opti_mpc.subject_to( robot_inputs[:,k] <= control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_inputs[:,k] >= -control_bound*np.ones((2,1)) )
 
-            u_bound = 1.2#0.5#1.2#0.5
+            u_bound = 0.5#1.2#0.5#1.2#0.5
             opti_mpc.subject_to( robot_states[3,k] >= -u_bound)#-control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_states[3,k] <= u_bound)#control_bound*np.ones((2,1)) )
             # current state-input contribution to objective ####
@@ -186,9 +190,19 @@ with writer.saving(fig, movie_name, 100):
                 human_states_dot_horizon = (humans_state_horizon_next - human_states_horizon)/dt
             
             if 1:#k<(mpc_horizon+1/2):
-                for i in range(num_people): # TODOs.. it fails with just 2 humans???? -> this works if original CBF condition imposed
-                    a = 1.0
+                for i in range(1): # TODOs.. it fails with just 2 humans???? -> this works if original CBF condition imposed
+
+                    # Rot_human = cd.hcat( [  
+                    #     cd.vcat( [ cd.cos(human_heading_angle[i]+human_heading_bias), -cd.sin(human_heading_angle[i]+human_heading_bias) ] ),
+                    #     cd.vcat( [ cd.sin(human_heading_angle[i]+human_heading_bias), cd.cos(human_heading_angle[i]+human_heading_bias) ] )
+                    # ] ) 
+
+                    Rot_human = np.eye(2)
+                    a = np.sqrt(1.0)
                     dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account  
+
+                    dist = cd.mtimes( Rot_human, dist )
+
                     dist[0,0] = dist[0,0] / a
                     h = cd.mtimes(dist.T , dist) - d_human**2
 
@@ -202,8 +216,12 @@ with writer.saving(fig, movie_name, 100):
                                 # opti_mpc.subject_to( h >= 1.0 * h_human[i] ) # CBF constraint # h_human is based on current state
 
                                 dist_prev = robot_states[0:2,k-1] - humans_state_horizon_prev[0:2,i] 
+                                dist_prev = cd.mtimes( Rot_human, dist_prev )
+                                dist_prev[0,0] = dist_prev[0,0] / a
                                 h_prev = cd.mtimes(dist_prev.T , dist_prev) - d_human**2
                                 opti_mpc.subject_to( h >= alpha_human[i] * h_prev )
+                                # dh_dx_x = 2*dist_prev[0,0]
+                                # dh_dx_y = 2*dist_prev[1,0]
                                                                         
                                 # Direct state constraint                                        
                                 # opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
@@ -233,28 +251,28 @@ with writer.saving(fig, movie_name, 100):
                     
 
             ################ Collision avoidance with polytopic obstacles    
-            if (k>0):      
-                lambda_o = opti_mpc.variable(len(obstacles),4)
-                lambda_r = opti_mpc.variable(len(obstacles),4)
+            # if (k>0):      
+            #     lambda_o = opti_mpc.variable(len(obstacles),4)
+            #     lambda_r = opti_mpc.variable(len(obstacles),4)
                 
-                # Robot Polytopic location at state at time k
-                Rot = cd.hcat( [  
-                    cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
-                    cd.vcat( [-cd.sin(robot_states[2,k]), cd.cos(robot_states[2,k]) ] )
-                    ] )        
-                A_r = robot.A @ Rot
-                b_r = cd.mtimes(cd.mtimes(robot.A, Rot), robot_states[0:2,k]) + robot.b
+            #     # Robot Polytopic location at state at time k
+            #     Rot = cd.hcat( [  
+            #         cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
+            #         cd.vcat( [-cd.sin(robot_states[2,k]), cd.cos(robot_states[2,k]) ] )
+            #         ] )        
+            #     A_r = robot.A @ Rot
+            #     b_r = cd.mtimes(cd.mtimes(robot.A, Rot), robot_states[0:2,k]) + robot.b
             
-                # Form polytopic CBF constraints
-                for i in range(len(obstacles)):
-                    A_o, b_o = obstacles[i].polytopic_location()
-                    lambda_bound = cd.fmax(1.0, 4*h_obstacles[i])                
-                    opti_mpc.subject_to(  slack_obstacles - cd.mtimes(lambda_o[i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) >= alpha_obstacle[i]**k * h_obstacles[i] + h_offset )
-                    opti_mpc.subject_to(  cd.mtimes(lambda_o[i,:], A_o) + cd.mtimes(lambda_r[i,:], A_r) == 0  )
-                    temp = cd.mtimes( lambda_o[i,:], A_o )
-                    opti_mpc.subject_to(  cd.mtimes( temp, temp.T ) <= lambda_bound  )
-                    opti_mpc.subject_to( lambda_o[i,:] >= 0 ) 
-                    opti_mpc.subject_to( lambda_r[i,:] >= 0 )
+            #     # Form polytopic CBF constraints
+            #     for i in range(len(obstacles)):
+            #         A_o, b_o = obstacles[i].polytopic_location()
+            #         lambda_bound = cd.fmax(1.0, 4*h_obstacles[i])                
+            #         opti_mpc.subject_to(  slack_obstacles - cd.mtimes(lambda_o[i,:], b_o) - cd.mtimes(lambda_r[i,:], b_r) >= alpha_obstacle[i]**k * h_obstacles[i] + h_offset )
+            #         opti_mpc.subject_to(  cd.mtimes(lambda_o[i,:], A_o) + cd.mtimes(lambda_r[i,:], A_r) == 0  )
+            #         temp = cd.mtimes( lambda_o[i,:], A_o )
+            #         opti_mpc.subject_to(  cd.mtimes( temp, temp.T ) <= lambda_bound  )
+            #         opti_mpc.subject_to( lambda_o[i,:] >= 0 ) 
+            #         opti_mpc.subject_to( lambda_r[i,:] >= 0 )
 
                 # Rot = cd.hcat( [  
                 #     cd.vcat( [ cd.cos(robot_states[2,k]), cd.sin(robot_states[2,k]) ] ),
@@ -351,6 +369,10 @@ with writer.saving(fig, movie_name, 100):
         human_future_positions = humans.get_future_states_with_input(dt,mpc_horizon)       
         human_speeds = np.copy(humans.controls)
         humans.step_using_controls(dt)
+
+        human_headings = np.asarray([ np.arctan2( human_speeds[1,i], human_speeds[0,i] ) for i in range(num_people) ])
+
+        opti_mpc.set_value(human_heading_angle, human_headings ) 
 
         # Adaptive / more conservative
         if nominal_sim:
