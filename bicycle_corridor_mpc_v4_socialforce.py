@@ -15,20 +15,23 @@ from crowd import crowd
 from trust_utils import compute_trust, compute_trust2
 from humansocialforce import *
 
-alpha_cbf_nominal_adaptive = 0.8#10.0#0.9#0.2#0.2 # red
-alpha_cbf_nominal_fixed = 0.3#1.0#0.9            # blue
+alpha_cbf_nominal_adaptive = 0.9#10.0#0.9#0.2#0.2 # red
+alpha_cbf_nominal_fixed = 0.9#0.3#1.0#0.9            # blue
 alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
 adapt_params = False
 
 first_order = False
-mpc_horizon = 2#5#40 # 30 with first order CBF
+mpc_horizon = 3#5#40 # 30 with first order CBF
+
+nominal_sim = True
+adaptive_sim = True
 
 # Trust parameters
 alpha_max = 10.0
-alpha_der_max = 40.0#2.0#0.5
-h_min = 1.0#1.5 # 6.0 # 1.0
-min_dist = 5.0 # 2.0 # 1.0
+alpha_der_max = 20.0#40.0#2.0#0.5
+h_min = 1.5#1.0#1.5 # 6.0 # 1.0
+min_dist = 4.0#5.0 # 2.0 # 1.0
 
 movie_name = 'social-navigation/Videos/bicycle_socialforce.mp4'
 # movie_name = 'Videos/bicycle_corridor_test.mp4'
@@ -164,7 +167,7 @@ with writer.saving(fig, movie_name, 100):
             opti_mpc.subject_to( robot_inputs[:,k] <= control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_inputs[:,k] >= -control_bound*np.ones((2,1)) )
 
-            u_bound = 0.5#1.2#0.5
+            u_bound = 1.2#0.5#1.2#0.5
             opti_mpc.subject_to( robot_states[3,k] >= -u_bound)#-control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_states[3,k] <= u_bound)#control_bound*np.ones((2,1)) )
             # current state-input contribution to objective ####
@@ -281,9 +284,13 @@ with writer.saving(fig, movie_name, 100):
     alpha_humans_diff = alpha_human-alpha_nominal_humans
     # alpha1_humans_diff = alpha1_human-alpha_nominal_humans
     # alpha2_humans_diff = alpha2_human-20*alpha_nominal_humans
-    alpha1_humans_diff = alpha1_human-(1-alpha_nominal_humans*dt)
+    # alpha_nominal_humans_continuous = (1-alpha_nominal_humans)/dt
+    # alpha1_humans_diff = alpha1_human-(1-alpha_nominal_humans*dt)
     alpha2_humans_diff = alpha2_human-30*(1-alpha_nominal_humans*dt)
+    alpha1_humans_diff = alpha1_human-(1-alpha_nominal_humans)/dt
+    alpha2_humans_diff = alpha2_human-30*(1-alpha_nominal_humans)/dt
     objective += 10.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 10.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
+    objective += 30.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 30.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 30.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     # objective += 1.0 *(  cd.mtimes( alpha_humans_diff.T, alpha_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha1_humans_diff.T, alpha1_humans_diff ) )  + 1.0 *(  cd.mtimes( alpha2_humans_diff.T, alpha2_humans_diff ) ) + 1.0 *(  cd.mtimes( alpha_obstacle_diff.T, alpha_obstacle_diff ) ) 
     opti_mpc.minimize(objective)
     # 30, 10 works with dt=0.05
@@ -318,9 +325,6 @@ with writer.saving(fig, movie_name, 100):
     nominal_input_prev = np.zeros((2,mpc_horizon))
     adaptive_input_prev = np.zeros((2,mpc_horizon))
 
-    nominal_sim = True
-    adaptive_sim = True
-
     max_speed = 0.5
     human_goals = np.copy(humans.goals)
     while t < tf:
@@ -348,7 +352,7 @@ with writer.saving(fig, movie_name, 100):
         human_speeds = np.copy(humans.controls)
         humans.step_using_controls(dt)
 
-        # Adaptive / more conservative
+        # Nominal / more conservative
         if nominal_sim:
 
             for i in range(len(obstacles)):
