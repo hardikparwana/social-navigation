@@ -6,7 +6,7 @@ import polytope as pt
 
 class single_integrator_square:
     
-    def __init__(self, ax, pos = np.array([0,0]), dt = 0.01):
+    def __init__(self, ax, pos = np.array([0,0]), dt = 0.01, plot_polytope = True):
         '''
         X0: iniytial state
         dt: simulation time step
@@ -27,9 +27,11 @@ class single_integrator_square:
         self.A, self.b = self.base_polytopic_location()
         
         # Plot handles
-        self.body = ax.scatter([],[],c='g',alpha=0.0,s=70)
-        self.rect = Rectangle((self.X[0,0]-self.width/2,self.X[1,0]-self.height/2),self.width,self.height,linewidth = 1, edgecolor='k',facecolor='k')
-        ax.add_patch(self.rect)
+        self.body = ax.scatter([],[],c='g',alpha=1.0,s=70)
+        self.plot_polytope = plot_polytope
+        if plot_polytope:
+            self.rect = Rectangle((self.X[0,0]-self.width/2,self.X[1,0]-self.height/2),self.width,self.height,linewidth = 1, edgecolor='k',facecolor='k')
+            ax.add_patch(self.rect)
         self.render_plot()
         self.Xs = np.copy(self.X)
         self.Us = np.copy(self.U)
@@ -52,7 +54,8 @@ class single_integrator_square:
     def render_plot(self):
         x = np.array([self.X[0,0],self.X[1,0]])
         self.body.set_offsets([x[0],x[1]])
-        self.rect.set_xy( (self.X[0,0]-self.width/2, self.X[1,0]-self.height/2) )
+        if self.plot_polytope:
+            self.rect.set_xy( (self.X[0,0]-self.width/2, self.X[1,0]-self.height/2) )
             
     def base_polytopic_location(self):
         x = np.array([0,0])
@@ -84,6 +87,17 @@ class single_integrator_square:
         b_g = A @ Rot.T # to be multiplied with control input
         
         return A, b_f, b_g*self.dt
+    
+    def nominal_controller(self, goal):
+        kx = 0.5
+        error = self.X - goal
+        return - kx * error
+    
+    def barrier(self, target, d_min = 0.5):
+        h = (self.X - target.X).T @ (self.X - target.X) - d_min**2
+        dh_dx1 = 2 * (self.X - target.X).T
+        dh_dx2 = - 2 * ( self.X - target.X ).T
+        return h, dh_dx1, dh_dx2
 
         
         
