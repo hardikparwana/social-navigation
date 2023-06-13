@@ -18,10 +18,10 @@ alpha_cbf_nominal_adaptive = 0.8#10.0#0.9#0.2#0.2 # red
 alpha_cbf_nominal_fixed = 0.8#1.0#0.9            # blue
 alpha_obstacle_nominal = 0.2
 h_offset = 0.07#0.07
-adapt_params = True
+adapt_params = False
 
 first_order = True
-mpc_horizon = 5#5#40 # 30 with first order CBF
+mpc_horizon = 10#5#40 # 30 with first order CBF
 
 # Trust parameters
 alpha_max = 10.0
@@ -29,7 +29,7 @@ alpha_der_max = 20.0#2.0#0.5
 h_min = 1.0 # 6.0 # 1.0
 min_dist = 5.0#1.0 # 2.0 # 1.0
 
-movie_name = 'social-navigation/Videos/bicycle_direction_bias.mp4'
+movie_name = 'social-navigation/Videos/bicycle_no_direction_bias.mp4'
 # movie_name = 'Videos/bicycle_corridor_test.mp4'
 paths_file = []#'social-navigation/paths.npy'
 # paths_file = 'social-navigation/paths_n20_tf40_v1.npy'
@@ -37,7 +37,7 @@ paths_file = []#'social-navigation/paths.npy'
 # demo 1: 1st order CBF
 # demo2: without h1>=0 constraint
 
-num_people = 5
+num_people = 1
 
 # Set Figure
 plt.ion()
@@ -107,9 +107,9 @@ humans_socialforce = socialforce.Simulator( socialforce_initial_state, delta_t =
 
 humans.controls = np.zeros((2,num_people))
 humans.controls[0,0] = -0.2; humans.controls[1,0] = 1.0;
-humans.controls[0,1] = 0.0; humans.controls[1,1] = 0.5;
-humans.controls[0,2] = 0.0; humans.controls[1,2] = 0.5;
-humans.controls[0,3] = 0.0; humans.controls[1,3] = 1.0;
+# humans.controls[0,1] = 0.0; humans.controls[1,1] = 0.5;
+# humans.controls[0,2] = 0.0; humans.controls[1,2] = 0.5;
+# humans.controls[0,3] = 0.0; humans.controls[1,3] = 1.0;
 
 metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
 writer = FFMpegWriter(fps=10, metadata=metadata)
@@ -169,7 +169,7 @@ with writer.saving(fig, movie_name, 100):
             opti_mpc.subject_to( robot_inputs[:,k] <= control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_inputs[:,k] >= -control_bound*np.ones((2,1)) )
 
-            u_bound = 0.5#1.2#0.5#1.2#0.5
+            u_bound = 0.5#0.5#1.2#0.5#1.2#0.5
             opti_mpc.subject_to( robot_states[3,k] >= -u_bound)#-control_bound*np.ones((2,1)) )
             opti_mpc.subject_to( robot_states[3,k] <= u_bound)#control_bound*np.ones((2,1)) )
             # current state-input contribution to objective ####
@@ -192,12 +192,12 @@ with writer.saving(fig, movie_name, 100):
             if 1:#k<(mpc_horizon+1/2):
                 for i in range(1): # TODOs.. it fails with just 2 humans???? -> this works if original CBF condition imposed
 
-                    # Rot_human = cd.hcat( [  
-                    #     cd.vcat( [ cd.cos(human_heading_angle[i]+human_heading_bias), -cd.sin(human_heading_angle[i]+human_heading_bias) ] ),
-                    #     cd.vcat( [ cd.sin(human_heading_angle[i]+human_heading_bias), cd.cos(human_heading_angle[i]+human_heading_bias) ] )
-                    # ] ) 
+                    Rot_human = cd.hcat( [  
+                        cd.vcat( [ cd.cos(human_heading_angle[i]+human_heading_bias), cd.sin(human_heading_angle[i]+human_heading_bias) ] ),
+                        cd.vcat( [ -cd.sin(human_heading_angle[i]+human_heading_bias), cd.cos(human_heading_angle[i]+human_heading_bias) ] )
+                    ] ) 
 
-                    Rot_human = np.eye(2)
+                    # Rot_human = np.eye(2)
                     a = np.sqrt(1.0)
                     dist = robot_states[0:2,k] - human_states_horizon[0:2,i]  # take horizon step into account  
 
@@ -220,9 +220,7 @@ with writer.saving(fig, movie_name, 100):
                                 dist_prev[0,0] = dist_prev[0,0] / a
                                 h_prev = cd.mtimes(dist_prev.T , dist_prev) - d_human**2
                                 opti_mpc.subject_to( h >= alpha_human[i] * h_prev )
-                                # dh_dx_x = 2*dist_prev[0,0]
-                                # dh_dx_y = 2*dist_prev[1,0]
-                                                                        
+        
                                 # Direct state constraint                                        
                                 # opti_mpc.subject_to( h >= 0.0 ) # normal distance constraint   # 0.3
                         else:
@@ -230,8 +228,10 @@ with writer.saving(fig, movie_name, 100):
                             robot_state_dot = (robot_states[:,k+1] - robot_states[:,k])/dt
                             robot_state_dot = robot.f_casadi(robot_states[:,k]) + cd.mtimes( robot.g_casadi(robot_states[:,k]), robot_inputs[:,k]  )
                             dist_dot = robot_state_dot[0:2] - human_states_dot_horizon[0:2,i]
+                            dist_dot = cd.mtimes( Rot_human, dist_dot )
                             dist_dot[0,0] = dist_dot[0,0] / a
                             dist_ddot = (robot.f_xddot_casadi(robot_states[:,k]) + cd.mtimes(robot.g_xddot_casadi(robot_states[:,k]), robot_inputs[:,k] ))[0:2,0]
+                            dist_ddot = cd.mtimes( Rot_human, dist_ddot )
                             dist_ddot[0,0] = dist_ddot[0,0]/a
                             h_dot  = 2*cd.mtimes(dist.T, dist_dot )
                             h_ddot = 2 * cd.mtimes( dist.T, dist_ddot ) + 2 * cd.mtimes( dist_dot.T, dist_dot )
@@ -387,7 +387,14 @@ with writer.saving(fig, movie_name, 100):
 
             for i in range(num_people):
 
-                dist = robot_nominal.X[0:2] - human_positions[0:2,i].reshape(-1,1)                 
+                dist = robot_nominal.X[0:2] - human_positions[0:2,i].reshape(-1,1)      
+
+                Rot_human = np.array([
+                    [ np.cos(human_headings[i]+human_heading_bias), -np.sin(human_headings[i]+human_heading_bias) ],
+                    [ np.sin(human_headings[i]+human_heading_bias), np.cos(human_headings[i]+human_heading_bias) ]
+                ])
+                dist = Rot_human @ dist 
+                dist[0,0]  = dist[0,0]/a
                 h_curr_humans[i] = (dist.T @ dist - d_human**2)[0,0]
                 if h_curr_humans[i]<-0.01:
                     print(f"***************************** Adaptive safety violated ********************************")
@@ -445,7 +452,14 @@ with writer.saving(fig, movie_name, 100):
 
             for i in range(num_people):
 
-                dist = robot.X[0:2] - human_positions[0:2,i].reshape(-1,1)                 
+                dist = robot.X[0:2] - human_positions[0:2,i].reshape(-1,1)   
+                Rot_human = np.array([
+                    [ np.cos(human_headings[i]+human_heading_bias), -np.sin(human_headings[i]+human_heading_bias) ],
+                    [ np.sin(human_headings[i]+human_heading_bias), np.cos(human_headings[i]+human_heading_bias) ]
+                ])
+                dist = Rot_human @ dist 
+                dist[0,0]  = dist[0,0]/a
+    
                 h_curr_humans[i] = (dist.T @ dist - d_human**2)[0,0]
                 if h_curr_humans[i]<-0.01:
                     print(f"***************************** Adaptive safety violated ********************************")
