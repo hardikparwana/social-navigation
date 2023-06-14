@@ -16,13 +16,13 @@ from humansocialforce import *
 t = 0
 dt = 0.03
 tf = 15
-alpha = 6#5#2.0#3.0#20
-alpha1 = 2#20#4.0#0.5#50
+alpha = 2#6#5#2.0#3.0#20
+alpha1 = 0.5#2#20#4.0#0.5#50
 control_bound = 2.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
-k_v = 1.2
+k_v = 1.5
 ######### holonomic controller
 n = 4 + num_obstacles + num_people # number of constraints
 u2 = cp.Variable((2,1))
@@ -80,8 +80,8 @@ metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!'
 writer = FFMpegWriter(fps=10, metadata=metadata)
 
 volume = []
-if 1:
-# with writer.saving(fig1, 'social-navigation/Videos/DU_test_feasible_space.mp4', 100): 
+# if 1:
+with writer.saving(fig1, 'Videos/DU_test_feasible_space.mp4', 100): 
     while t < tf:
 
         robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]])
@@ -135,4 +135,4 @@ if 1:
 
         t = t + dt
         
-        # writer.grab_frame()
+        writer.grab_frame()
