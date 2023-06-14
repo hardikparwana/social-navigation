@@ -24,7 +24,7 @@ plt.ion()
 
 # fig1  =plt.figure()
 xlim = (-1,5); ylim = (-1,5)
-fig1, ax1 = plt.subplots( 1, 2, figsize=(12, 6), gridspec_kw={'width_ratios': [5, 5]})# )#, gridspec_kw={'height_ratios': [1, 1]} )
+fig1, ax1 = plt.subplots( 1, 3, figsize=(18, 6), gridspec_kw={'width_ratios': [5, 5, 2]})# )#, gridspec_kw={'height_ratios': [1, 1]} )
 ax1[0].set_xlim([-1,5])
 ax1[0].set_ylim([-1,5])
 
@@ -53,6 +53,7 @@ metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!'
 writer = FFMpegWriter(fps=10, metadata=metadata)
 
 # if 1:
+volume = []
 with writer.saving(fig1, 'Videos/DU_limit_init_feasible_space.mp4', 100): 
     while t < tf:
 
@@ -80,12 +81,18 @@ with writer.saving(fig1, 'Videos/DU_limit_init_feasible_space.mp4', 100):
         ax1[1].clear()
         ax1[1].set_xlim( [-control_bound-1, control_bound+1] )
         ax1[1].set_ylim( [-control_bound-1, control_bound+1] )
-        hull_plot = pt.Polytope( -A2.value, -b2.value ).plot(ax1[1], color = 'g')
+        hull = pt.Polytope( -A2.value, -b2.value )
+        hull_plot = hull.plot(ax1[1], color = 'g')
+        volume.append(pt.volume( hull, nsamples=50000 ))
+
         ax1[1].set_xlabel('Linear Acceleration'); ax1[1].set_ylabel('Angular Velocity')
         # ax1[1].set_xlabel(r'$u_x$'); ax1[1].set_ylabel(r'$u_y$')
         ax1[1].scatter( u2.value[0,0], u2.value[1,0], c = 'r', label = 'CBF-QP chosen control' )
         ax1[1].legend()
         ax1[1].set_title('Feasible Space for Control')
+
+        ax1[2].plot( volume, 'r' )
+        ax1[2].set_title('Polytope Volume')
 
         fig1.canvas.draw()
         fig1.canvas.flush_events()
