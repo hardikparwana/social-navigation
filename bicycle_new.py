@@ -139,19 +139,21 @@ class bicycle:
 
     def nominal_controller(self, targetX):
         k_omega = 3.0#2.0 
-        k_v = 2.0#3.0#0.3#0.15##5.0#0.15
-        distance = np.linalg.norm( self.X[0:2]-targetX[0:2] )
+        k_v = 1.0#3.0#0.3#0.15##5.0#0.15
+        distance = max( np.linalg.norm( self.X[0:2]-targetX[0:2] ), 0.1 )
         desired_heading = np.arctan2( targetX[1,0]-self.X[1,0], targetX[0,0]-self.X[0,0] )
         error_heading = wrap_angle( desired_heading - self.X[2,0] )
 
-        omega = k_omega * error_heading
+        omega = k_omega * error_heading * np.tanh( distance )
         speed = k_v * distance * np.cos(error_heading)
         u_r = 1.0 * k_v * ( speed - self.X[3,0] )
         return np.array([u_r, omega]).reshape(-1,1)
     
-    def barrier(self, target, d_min = 0.5, alpha1 = 2.0):
+    def barrier(self, target, d_min = 0.5, alpha1 = 1.0):
  
         h = (self.X[0:2] - target.X[0:2]).T @ (self.X[0:2] - target.X[0:2]) - d_min**2
+        assert(h >= 0.0)
+        print(f"h :{h}")
         dh_dx1 = np.append( 2*(self.X[0:2] - target.X[0:2]).T, np.array([[0, 0]]), axis = 1 )
         dh_dx2 = - 2*(self.X[0:2] - target.X[0:2]).T
         

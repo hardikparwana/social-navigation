@@ -1,3 +1,4 @@
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import PatchCollection
@@ -89,7 +90,7 @@ class single_integrator_square:
         return A, b_f, b_g*self.dt
     
     def nominal_controller(self, goal):
-        kx = 0.5
+        kx = 1.0
         error = self.X - goal
         return - kx * error
     
