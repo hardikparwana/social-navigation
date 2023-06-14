@@ -41,10 +41,10 @@ class crowd:
             self.X = self.paths[0,0: self.num_people], self.paths[1,0: self.num_people] + 1.0 # 1.0
             
             # Animate trajectories
-            self.body = self.ax.scatter(self.paths[0,0: self.num_people], self.paths[1,0: self.num_people],c='g',alpha=0.5,s=50)#50
+            self.body = self.ax.scatter(self.paths[0,0: self.num_people], self.paths[1,0: self.num_people],c='r',alpha=0.5,s=50)#50
             self.plot_counter = 1
         else:
-            self.body = self.ax.scatter(self.X[0,0: self.num_people], self.X[1,0: self.num_people],c='g',alpha=0.5,s=50)#50
+            self.body = self.ax.scatter(self.X[0,0: self.num_people], self.X[1,0: self.num_people],c='r',alpha=0.5,s=50)#50
             
         self.distance_to_polytope = cd.Opti()
         self.A = self.distance_to_polytope.parameter(4,2)

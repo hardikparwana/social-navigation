@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 from bicycle_new import bicycle
 from single_integrator import single_integrator_square
+from polytope_utils import plot_polytope_lines
 from obstacles import circle
 from matplotlib.animation import FFMpegWriter
 
@@ -18,7 +19,6 @@ b2 = cp.Parameter((n,1))
 const2 = [A2 @ u2 >= b2]
 controller2 = cp.Problem( objective2, const2 )
 ##########
-
 
 plt.ion()
 
@@ -84,6 +84,7 @@ with writer.saving(fig1, 'Videos/DU_limit_init_feasible_space.mp4', 100):
         hull = pt.Polytope( -A2.value, -b2.value )
         hull_plot = hull.plot(ax1[1], color = 'g')
         volume.append(pt.volume( hull, nsamples=50000 ))
+        plot_polytope_lines( ax1[1], hull, control_bound )
 
         ax1[1].set_xlabel('Linear Acceleration'); ax1[1].set_ylabel('Angular Velocity')
         # ax1[1].set_xlabel(r'$u_x$'); ax1[1].set_ylabel(r'$u_y$')

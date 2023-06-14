@@ -165,6 +165,7 @@ class bicycle:
         dh1_dx2 = dh_dot_dx2 + alpha1 * dh_dx2
         
         return h1, dh1_dx1, dh1_dx2
+    
         
 
         
