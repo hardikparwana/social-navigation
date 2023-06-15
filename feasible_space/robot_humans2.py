@@ -1,16 +1,16 @@
-import numpy as np
+# import numpy as np
 import cvxpy as cp
 import polytope as pt
 import matplotlib.pyplot as plt
 
 from bicycle_new import bicycle
 from single_integrator import single_integrator_square
-from polytope_utils import plot_polytope_lines
+from polytope_utils import *
 from obstacles import circle
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 from humansocialforce import *
-
+import jax.numpy as jnp
 
 # Sim parameters
 t = 0
@@ -23,6 +23,8 @@ goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
 k_v = 1.2
+plot_ellipse = True
+
 ######### holonomic controller
 n = 4 + num_obstacles + num_people # number of constraints
 u2 = cp.Variable((2,1))
@@ -48,7 +50,7 @@ obstacles.append( circle( ax1[0], pos = np.array([-1.0,-0.6]), radius = 0.5 ) )
 obstacles.append( circle( ax1[0], pos = np.array([0.0,-0.6]), radius = 0.5 ) )  
 obstacles.append( circle( ax1[0], pos = np.array([-1.0,2.2]), radius = 0.5 ) )  
 obstacles.append( circle( ax1[0], pos = np.array([0.0,2.2]), radius = 0.5 ) )
-
+# exit()
 # Robot
 # robot = single_integrator_square( ax1[0], pos = np.array([ 0, 0 ]), dt = dt, plot_polytope=False )
 robot = bicycle( ax1[0], pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), dt = dt, plot_polytope=False )
@@ -78,7 +80,7 @@ humans_socialforce = socialforce.Simulator( socialforce_initial_state, delta_t =
 
 metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
 writer = FFMpegWriter(fps=10, metadata=metadata)
-
+# exit()
 volume = []
 if 1:
 # with writer.saving(fig1, 'Videos/DU_test_feasible_space.mp4', 100): 
@@ -112,9 +114,24 @@ if 1:
         hull_plot = hull.plot(ax1[1], color = 'g')
         plot_polytope_lines( ax1[1], hull, control_bound )
 
-        volume.append(pt.volume( hull, nsamples=50000 ))
+        # volume.append(pt.volume( hull, nsamples=50000 ))
+        volume.append(np.array(mc_polytope_volume( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), bounds = control_bound, num_samples=50000)))
         ax1[2].plot( volume, 'r' )
         ax1[2].set_title('Polytope Volume')
+        print(f"GRAD : { mc_polytope_volume_grad( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), bounds = control_bound, num_samples=50000 ) } ")
+
+        if plot_ellipse:
+            ellipse_A.value = hull.A
+            ellipse_b.value = hull.b.reshape(-1,1)
+            ellipse_prob.solve()#gp=True, requires_grad=True)
+            angles   = np.linspace( 0, 2 * np.pi, 100 )
+            ellipse_inner  = (ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value# * np.ones( 1, noangles );
+            ellipse_outer  = (2* ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value
+            ax1[1].plot( ellipse_inner[0,:], ellipse_inner[1,:], 'b', label='Inner Ellipse' )
+            ax1[1].plot( ellipse_outer[0,:], ellipse_outer[1,:], 'g', label='Outer Ellipse' )
+            # ellipse_prob.backward()# cannot take gradient
+
+
 
         controller2.solve()
         if controller2.status == 'infeasible':
@@ -136,3 +153,9 @@ if 1:
         t = t + dt
         
         # writer.grab_frame()
+
+    # def polytope_barrier(  )
+
+
+
+

@@ -75,9 +75,15 @@ humans.goals[0,4] =  4.0; humans.goals[1,4] = 0.1;
 humans.render_plot(humans.X)
 
 socialforce_initial_state = np.append( np.append( np.copy( humans.X.T ), 0*np.copy( humans.X.T ) , axis = 1 ), humans.goals.T, axis=1   )
+angles = np.linspace(0,2*np.pi,30)
+obstacle_locations = np.append( (obstacles[0].X[0,0]+obstacles[0].radius)*np.cos(angles).reshape(-1,1), (obstacles[0].X[1,0]+obstacles[0].radius*np.sin(angles)).reshape(-1,1), axis=1 )
+obstacles_social_state = np.append( obstacle_locations[0,:].reshape(1,-1), np.append( np.zeros((1,2)), obstacle_locations[0,:].reshape(1,-1), axis=1 ), axis=1 )
+for i in range(1,len(obstacles)):
+    obstacle_locations = np.append( (obstacles[i].X[0,0]+obstacles[i].radius)*np.cos(angles).reshape(-1,1), (obstacles[i].X[1,0]+obstacles[i].radius*np.sin(angles)).reshape(-1,1), axis=1 )
+    obstacles_social_state = np.append( obstacles_social_state, np.append( obstacle_locations.T, np.append( np.zeros((1,2)), obstacle_locations.T, axis=1 ), axis=1 ), axis = 0 )
 robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.U[0,0], robot.U[1,0] , goal[0,0], goal[1,0]]).reshape(1,-1)
-socialforce_initial_state = np.append( socialforce_initial_state, robot_social_state, axis=0 )
-humans_socialforce = socialforce.Simulator( socialforce_initial_state, delta_t = dt )
+socialforce_initial_state = np.append( socialforce_initial_state, np.append(obstacles_social_state, robot_social_state, axis=0), axis=0 )
+humans_socialforce = Simulator( socialforce_initial_state, delta_t = dt )
 
 metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
 writer = FFMpegWriter(fps=10, metadata=metadata)
@@ -89,7 +95,7 @@ if 1:
 
         robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.U[0,0], robot.U[1,0] , goal[0,0], goal[1,0]])
         humans_socialforce.state[-1,0:6] = robot_social_state
-        humans.controls = humans_socialforce.step().state.copy()[:-1,2:4].copy().T
+        humans.controls = humans_socialforce.step().state.copy()[:-1-len(obstacles),2:4].copy().T
         humans.step_using_controls(dt)
 
         # desired input

@@ -1,4 +1,7 @@
 import numpy as np
+import jax
+from jax import jit, grad
+import jax.numpy as jnp
 import polytope as pt
 import cvxpy as cp
 
@@ -25,19 +28,30 @@ def plot_polytope_lines(ax, hull, u_bound):
             else:
                 ax.vline( 0.0, color='k', linestyle='--', alpha = alpha )
 
+# @jit
+def mc_polytope_volume(A, b, bounds = 30, num_samples=10000):
+    key = jax.random.PRNGKey(10)
+    samples = jax.random.uniform( key, shape=(2,num_samples), minval=-bounds, maxval=bounds )  
+    aux = A @ samples - b
+    aux = jnp.nonzero(jnp.all(aux < 0, 0))[0].shape[0]
+    vol = (2*bounds)**2 * aux / num_samples
+    return vol
+mc_polytope_volume_grad = grad( mc_polytope_volume, 0 )
 # Formulate and solve the Ellipse problem
-# ellipse_n = 2
-# ellipse_B = cp.Variable((ellipse_n,ellipse_n), symmetric=True)
-# ellipse_d = cp.Variable((ellipse_n,1))
-# ellipse_A = cp.Parameter((ellipse_n,2))
-# ellipse_b = cp.Parameter((ellipse_n,1))
-# ellipse_objective = cp.Maximize( cp.log_det( ellipse_B ) )
-# ellipse_const = []
-# for ellipse_i in range( ellipse_A.shape[0] ):
-#     ellipse_const += [ cp.norm( ellipse_B @ ellipse_A[ellipse_i,:].reshape(-1,1) ) + ellipse_A[ellipse_i,:].reshape(1,-1) @ ellipse_d <= ellipse_b[ellipse_i,0] ]
-# ellipse_prob = cp.Problem( ellipse_objective, ellipse_const )
-# # ellipse_prob.solve()
-
+ellipse_n = 2
+ellipse_num_planes = 4 + 5 + 4
+ellipse_B = cp.Variable((ellipse_n,ellipse_n), symmetric=True)
+ellipse_d = cp.Variable((ellipse_n,1))
+ellipse_A = cp.Parameter((ellipse_num_planes,2))
+ellipse_b = cp.Parameter((ellipse_num_planes,1))
+ellipse_objective = cp.Maximize( cp.log_det( ellipse_B ) )
+# ellipse_objective = cp.Maximize( cp.sum_squares( ellipse_B ) )
+ellipse_const = []
+for ellipse_i in range( ellipse_A.shape[0] ):
+    ellipse_const += [ cp.norm( ellipse_B @ ellipse_A[ellipse_i,:]) + ellipse_A[ellipse_i,:] @ ellipse_d <= ellipse_b[ellipse_i,0] ]
+ellipse_prob = cp.Problem( ellipse_objective, ellipse_const )
+ellipse_prob.is_dgp(dpp=True) # dpp=True
+# ellipse_prob.solve()
 # # Formulate and solve the Circle problem
 # circle_n = 2
 # circle_r = cp.Variable()

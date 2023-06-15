@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from bicycle_new import bicycle
 from single_integrator import single_integrator_square
-from polytope_utils import plot_polytope_lines
+from polytope_utils import *
 from obstacles import circle
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
@@ -22,6 +22,7 @@ control_bound = 3.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 0
+plot_ellipse = True
 
 ######### holonomic controller
 n = 4 + num_obstacles + num_people # number of constraints
@@ -38,7 +39,7 @@ plt.ion()
 fig1, ax1 = plt.subplots( 1, 3, figsize=(18, 6), gridspec_kw={'width_ratios': [5, 5, 2]})# )#, gridspec_kw={'height_ratios': [1, 1]} )
 ax1[0].set_xlim([-3,5])
 ax1[0].set_ylim([-3,5])
-offset = 30.0
+offset = 3.0
 ax1[1].set_xlim([-control_bound-offset, control_bound+offset])
 ax1[1].set_ylim([-control_bound-offset, control_bound+offset])
 
@@ -116,6 +117,17 @@ if 1:
         ax1[2].plot( volume, 'r' )
         ax1[2].set_title('Polytope Volume')
 
+        if plot_ellipse:
+            ellipse_A.value = hull.A
+            ellipse_b.value = hull.b.reshape(-1,1)
+            ellipse_prob.solve()
+            angles   = np.linspace( 0, 2 * np.pi, 100 )
+            ellipse_inner  = (ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value# * np.ones( 1, noangles );
+            ellipse_outer  = (2* ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value
+            ax1[1].plot( ellipse_inner[0,:], ellipse_inner[1,:], 'b', label='Inner Ellipse' )
+            ax1[1].plot( ellipse_outer[0,:], ellipse_outer[1,:], 'g', label='Outer Ellipse' )
+
+
         controller2.solve()
         if controller2.status == 'infeasible':
             print(f"QP infeasible")
@@ -127,7 +139,7 @@ if 1:
         ax1[1].set_xlabel('Linear Acceleration'); ax1[1].set_ylabel('Angular Velocity')
         # ax1[1].set_xlabel(r'$u_x$'); ax1[1].set_ylabel(r'$u_y$')
         ax1[1].scatter( u2.value[0,0], u2.value[1,0], c = 'r', label = 'CBF-QP chosen control' )
-        ax1[1].legend()
+        ax1[1].legend(loc='upper right')
         ax1[1].set_title('Feasible Space for Control')
 
         fig1.canvas.draw()

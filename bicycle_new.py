@@ -153,7 +153,7 @@ class bicycle:
  
         h = (self.X[0:2] - target.X[0:2]).T @ (self.X[0:2] - target.X[0:2]) - d_min**2
         assert(h >= 0.0)
-        print(f"h :{h}")
+        # print(f"h :{h}")
         dh_dx1 = np.append( 2*(self.X[0:2] - target.X[0:2]).T, np.array([[0, 0]]), axis = 1 )
         dh_dx2 = - 2*(self.X[0:2] - target.X[0:2]).T
         
@@ -172,7 +172,7 @@ class bicycle:
  
         h = (self.X[0:2] - targetX[0:2]).T @ (self.X[0:2] - targetX[0:2]) - d_min**2
         assert(h >= -0.05)
-        print(f"h :{h}")
+        # print(f"h :{h}")
         dh_dx1 = np.append( 2*(self.X[0:2] - targetX[0:2]).T, np.array([[0, 0]]), axis = 1 )
         dh_dx2 = - 2*(self.X[0:2] - targetX[0:2]).T
         
