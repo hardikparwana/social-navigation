@@ -16,21 +16,25 @@ from humansocialforce import *
 t = 0
 dt = 0.03
 tf = 15
-alpha = 6#5#2.0#3.0#20#6
-alpha1 = 2#20#4.0#0.5#50#2
-control_bound = 2.0
+alpha = 2#5#2.0#3.0#20#6
+control_bound = 1.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
-k_v = 1.2
+kx = 30.0
+
 ######### holonomic controller
 n = 4 + num_obstacles + num_people # number of constraints
 u2 = cp.Variable((2,1))
 u2_ref = cp.Parameter((2,1))
-objective2 = cp.Minimize( cp.sum_squares( u2 - u2_ref ) )
-A2 = cp.Parameter((n,2))
+alpha_qp = cp.Variable((num_people,1))
+alpha_qp_nominal = cp.Parameter((num_people,1), value = alpha*np.ones((num_people,1)))
+objective2 = cp.Minimize( cp.sum_squares( u2 - u2_ref ) + 1 * cp.sum_squares( alpha_qp - alpha_qp_nominal ) )
+A2_u = cp.Parameter((n,2), value=np.zeros((n,2))) 
+A2_alpha = cp.Parameter((n,num_people), value = np.zeros((n,num_people)))
 b2 = cp.Parameter((n,1))
-const2 = [A2 @ u2 >= b2]
+const2 = [A2_u @ u2 + A2_alpha @ alpha_qp>= b2]
+const2 += [alpha_qp >= 0]
 controller2 = cp.Problem( objective2, const2 )
 ##########
 
@@ -50,8 +54,7 @@ obstacles.append( circle( ax1[0], pos = np.array([-1.0,2.2]), radius = 0.5 ) )
 obstacles.append( circle( ax1[0], pos = np.array([0.0,2.2]), radius = 0.5 ) )
 
 # Robot
-# robot = single_integrator_square( ax1[0], pos = np.array([ 0, 0 ]), dt = dt, plot_polytope=False )
-robot = bicycle( ax1[0], pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), dt = dt, plot_polytope=False )
+robot = single_integrator_square( ax1[0], pos = np.array([ 1.0, 1.0 ]), dt = dt, plot_polytope=False )
 control_input_limit_points = np.array([ [control_bound, control_bound], [-control_bound, control_bound], [-control_bound, -control_bound], [control_bound, -control_bound] ])
 control_bound_polytope = pt.qhull( control_input_limit_points )
 ax1[0].scatter( goal[0], goal[1], edgecolors ='g', facecolors='none' )
@@ -72,7 +75,7 @@ humans.goals[0,4] =  4.0; humans.goals[1,4] = 0.1;
 humans.render_plot(humans.X)
 
 socialforce_initial_state = np.append( np.append( np.copy( humans.X.T ), 0*np.copy( humans.X.T ) , axis = 1 ), humans.goals.T, axis=1   )
-robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]]).reshape(1,-1)
+robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.U[0,0], robot.U[1,0] , goal[0,0], goal[1,0]]).reshape(1,-1)
 socialforce_initial_state = np.append( socialforce_initial_state, robot_social_state, axis=0 )
 humans_socialforce = socialforce.Simulator( socialforce_initial_state, delta_t = dt )
 
@@ -84,37 +87,31 @@ if 1:
 # with writer.saving(fig1, 'Videos/DU_test_feasible_space.mp4', 100): 
     while t < tf:
 
-        robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]])
+        robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.U[0,0], robot.U[1,0] , goal[0,0], goal[1,0]])
         humans_socialforce.state[-1,0:6] = robot_social_state
         humans.controls = humans_socialforce.step().state.copy()[:-1,2:4].copy().T
         humans.step_using_controls(dt)
 
         # desired input
-        u2_ref.value = robot.nominal_controller( goal, k_v = k_v )
+        u2_ref.value = robot.nominal_controller( goal, kx = kx )
 
         # barrier function
-        A = np.zeros((1,2)); b = np.zeros((1,1))
+        A_u = np.zeros((1,2)); A_alpha = np.zeros((1,num_people)); b = np.zeros((1,1))
         for i in range(len(obstacles)):
-            h, dh_dx, _ = robot.barrier( obstacles[i], d_min = 0.5, alpha1 = alpha1 )
-            A = np.append( A, dh_dx @ robot.g(), axis = 0 )
+            h, dh_dx, _ = robot.barrier( obstacles[i], d_min = 0.5 )
+            A_u = np.append( A_u, dh_dx @ robot.g(), axis = 0 )
+            A_alpha = np.append( A_alpha, np.zeros((1,num_people)), axis=0 )
             b = np.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
         for i in range(num_people):
-            h, dh_dx, _ = robot.barrier_humans( humans.X[:,i].reshape(-1,1), humans.controls[:,i].reshape(-1,1), d_min = 0.5, alpha1 = alpha1 )
-            A = np.append( A, dh_dx @ robot.g(), axis = 0 )
-            b = np.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
-        A2.value = np.append( A[1:], -control_bound_polytope.A, axis=0 )
+            h, dh_dx, dh_dx2 = robot.barrier_humans( humans.X[:,i].reshape(-1,1), d_min = 0.5 )
+            A_u = np.append( A_u, dh_dx @ robot.g(), axis = 0 )
+            A_temp = np.zeros((1,num_people)); A_temp[0,i] = h
+            A_alpha = np.append(A_alpha, A_temp, axis = 0 ) # - alpha_qp[i] * h
+            b = np.append( b, - dh_dx @ robot.f() - dh_dx2 @ humans.controls[:,i].reshape(-1,1), axis = 0 )
+            
+        A2_u.value = np.append( A_u[1:], -control_bound_polytope.A, axis=0 )
+        A2_alpha.value = np.append( A_alpha[1:], np.zeros((4,num_people)), axis=0 )
         b2.value = np.append( b[1:], -control_bound_polytope.b.reshape(-1,1), axis=0 )
-
-        ax1[1].clear()
-        ax1[1].set_xlim([-control_bound-offset, control_bound+offset])
-        ax1[1].set_ylim([-control_bound-offset, control_bound+offset])
-        hull = pt.Polytope( -A2.value, -b2.value )
-        hull_plot = hull.plot(ax1[1], color = 'g')
-        plot_polytope_lines( ax1[1], hull, control_bound )
-
-        volume.append(pt.volume( hull, nsamples=50000 ))
-        ax1[2].plot( volume, 'r' )
-        ax1[2].set_title('Polytope Volume')
 
         controller2.solve()
         if controller2.status == 'infeasible':
@@ -123,9 +120,19 @@ if 1:
         robot.step( u2.value )
         robot.render_plot()
         humans.render_plot(humans.X)
+        print(f"alpha: {alpha_qp.value.T}")
+        
+        ax1[1].clear()
+        ax1[1].set_xlim([-control_bound-offset, control_bound+offset])
+        ax1[1].set_ylim([-control_bound-offset, control_bound+offset])
+        hull = pt.Polytope( -A2_u.value, -b2.value + A2_alpha.value @ alpha_qp.value )
+        hull_plot = hull.plot(ax1[1], color = 'g')
+        plot_polytope_lines( ax1[1], hull, control_bound )
+        volume.append(pt.volume( hull, nsamples=50000 ))
+        ax1[2].plot( volume, 'r' )
+        ax1[2].set_title('Polytope Volume')
 
-        ax1[1].set_xlabel('Linear Acceleration'); ax1[1].set_ylabel('Angular Velocity')
-        # ax1[1].set_xlabel(r'$u_x$'); ax1[1].set_ylabel(r'$u_y$')
+        ax1[1].set_xlabel(r'$u_x$'); ax1[1].set_ylabel(r'$u_y$')
         ax1[1].scatter( u2.value[0,0], u2.value[1,0], c = 'r', label = 'CBF-QP chosen control' )
         ax1[1].legend()
         ax1[1].set_title('Feasible Space for Control')

@@ -89,8 +89,7 @@ class single_integrator_square:
         
         return A, b_f, b_g*self.dt
     
-    def nominal_controller(self, goal):
-        kx = 1.0
+    def nominal_controller(self, goal, kx = 1.0):
         error = self.X - goal
         return - kx * error
     
@@ -98,6 +97,12 @@ class single_integrator_square:
         h = (self.X - target.X).T @ (self.X - target.X) - d_min**2
         dh_dx1 = 2 * (self.X - target.X).T
         dh_dx2 = - 2 * ( self.X - target.X ).T
+        return h, dh_dx1, dh_dx2
+    
+    def barrier_humans(self, targetX, d_min = 0.5):
+        h = (self.X - targetX).T @ (self.X - targetX) - d_min**2
+        dh_dx1 = 2 * (self.X - targetX).T
+        dh_dx2 = - 2 * ( self.X - targetX ).T
         return h, dh_dx1, dh_dx2
 
         

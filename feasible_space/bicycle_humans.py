@@ -16,8 +16,8 @@ from humansocialforce import *
 t = 0
 dt = 0.03
 tf = 15
-alpha = 5#2.0#3.0#20
-alpha1 = 10#4.0#0.5#50
+alpha = 10#2.0#3.0#20
+alpha1 = 5#4.0#0.5#50
 control_bound = 3.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
@@ -33,9 +33,11 @@ objective2 = cp.Minimize( cp.sum_squares( u2 - u2_ref ) + 10 * cp.sum_squares( a
 A2 = cp.Parameter((n,2))
 b2 = cp.Parameter((n,1))
 const2 = [A2 @ u2 >= b2]
+const2 += [ alpha_qp >= alpha1*np.ones(num_people) ]
+const2 += [ alpha_qp >= 0 ]
 controller2 = cp.Problem( objective2, const2 )
 ##########
-
+ 
 plt.ion()
 fig1, ax1 = plt.subplots( 1, 3, figsize=(18, 6), gridspec_kw={'width_ratios': [5, 5, 2]})# )#, gridspec_kw={'height_ratios': [1, 1]} )
 ax1[0].set_xlim([-3,5])
@@ -103,7 +105,7 @@ if 1:
         for i in range(num_people):
             h, dh_dx, _ = robot.barrier_humans( humans.X[:,i].reshape(-1,1), humans.controls[:,i].reshape(-1,1), d_min = 0.5, alpha1 = alpha1 )
             A = np.append( A, dh_dx @ robot.g(), axis = 0 )
-            b = np.append( b, - 2*alpha_qp[i] * h - dh_dx @ robot.f(), axis = 0 )
+            b = np.append( b, - alpha_qp[i] * h - dh_dx @ robot.f(), axis = 0 )
         A2.value = np.append( A[1:], -control_bound_polytope.A, axis=0 )
         b2.value = np.append( b[1:], -control_bound_polytope.b.reshape(-1,1), axis=0 )
 
