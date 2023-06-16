@@ -43,8 +43,8 @@ obstacles.append( circle( ax1[0], pos = np.array([2.0,2.0]), radius = 0.5 ) )
 obstacles.append( circle( ax1[0], pos = np.array([1.0,3.0]), radius = 0.5 ) )  
 obstacles.append( circle( ax1[0], pos = np.array([2.7,3.0]), radius = 0.5 ) )  
 
-# robot = single_integrator_square( ax1[0], pos = np.array([ 0, 0 ]), dt = dt, plot_polytope=False )
-robot = bicycle( ax1[0], pos = np.array([ 0, 0, np.pi/3, 2.0 ]), dt = dt, plot_polytope=False )
+robot = single_integrator_square( ax1[0], pos = np.array([ 0, 0 ]), dt = dt, plot_polytope=False )
+# robot = bicycle( ax1[0], pos = np.array([ 0, 0, np.pi/3, 2.0 ]), dt = dt, plot_polytope=False )
 control_bound = 2.0
 control_input_limit_points = np.array([ [control_bound, control_bound], [-control_bound, control_bound], [-control_bound, -control_bound], [control_bound, -control_bound] ])
 control_bound_polytope = pt.qhull( control_input_limit_points )
@@ -54,7 +54,7 @@ writer = FFMpegWriter(fps=10, metadata=metadata)
 
 # if 1:
 volume = []
-with writer.saving(fig1, 'Videos/DU_limit_init_feasible_space.mp4', 100): 
+with writer.saving(fig1, 'Videos/SI_feasible_space_slow.mp4', 100): 
     while t < tf:
 
         # desired input
@@ -63,7 +63,7 @@ with writer.saving(fig1, 'Videos/DU_limit_init_feasible_space.mp4', 100):
         # barrier function
         A = np.zeros((1,2)); b = np.zeros((1,1))
         for i in range(len(obstacles)):
-            h, dh_dx, _ = robot.barrier( obstacles[i], d_min = 0.5, alpha1 = 0.5 )
+            h, dh_dx, _ = robot.barrier( obstacles[i], d_min = 0.5)#, alpha1 = 0.5 )
             A = np.append( A, dh_dx @ robot.g(), axis = 0 )
             b = np.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
 

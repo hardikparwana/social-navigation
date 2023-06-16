@@ -89,7 +89,7 @@ class single_integrator_square:
         
         return A, b_f, b_g*self.dt
     
-    def nominal_controller(self, goal, kx = 1.0):
+    def nominal_controller(self, goal, kx = 3.0):
         error = self.X - goal
         return - kx * error
     

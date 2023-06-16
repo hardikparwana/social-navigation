@@ -11,7 +11,6 @@ from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 from humansocialforce import *
 
-
 # Sim parameters
 t = 0
 dt = 0.03

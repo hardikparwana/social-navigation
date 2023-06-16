@@ -81,8 +81,8 @@ metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!'
 writer = FFMpegWriter(fps=10, metadata=metadata)
 
 volume = []
-if 1:
-# with writer.saving(fig1, 'social-navigation/Videos/DU_test_feasible_space.mp4', 100): 
+# if 1:
+with writer.saving(fig1, 'Videos/DU_fs_humans.mp4', 100): 
     while t < tf:
 
         robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]])
@@ -147,4 +147,4 @@ if 1:
 
         t = t + dt
         
-        # writer.grab_frame()
+        writer.grab_frame()

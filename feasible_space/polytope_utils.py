@@ -29,14 +29,28 @@ def plot_polytope_lines(ax, hull, u_bound):
                 ax.vline( 0.0, color='k', linestyle='--', alpha = alpha )
 
 # @jit
-def mc_polytope_volume(A, b, bounds = 30, num_samples=10000):
+# def mc_polytope_volume(A, b, bounds = 30, num_samples=10000):
+#     key = jax.random.PRNGKey(10)
+#     samples = jax.random.uniform( key, shape=(2,num_samples), minval=-bounds, maxval=bounds )  
+#     aux = A @ samples - b
+#     aux = jnp.nonzero(jnp.all(aux < 0, 0))[0].shape[0]
+#     vol = (2*bounds)**2 * aux / num_samples
+#     return vol
+# mc_polytope_volume_grad = grad( mc_polytope_volume, 0 )
+
+def mc_polytope_volume(A, b, bounds = 30):
     key = jax.random.PRNGKey(10)
-    samples = jax.random.uniform( key, shape=(2,num_samples), minval=-bounds, maxval=bounds )  
-    aux = A @ samples - b
-    aux = jnp.nonzero(jnp.all(aux < 0, 0))[0].shape[0]
-    vol = (2*bounds)**2 * aux / num_samples
+    num_samples=50000
+    samples = jax.random.uniform( key, shape=(2,num_samples), minval=-bounds, maxval=bounds )#A.shape[1]   
+    aux = A @ samples - b    
+    aux = -aux
+    aux = jnp.min(aux, axis=0)
+    aux = (jnp.tanh( aux / 0.0000001 ) + 1.0)/2.0
+    aux = jnp.sum( aux )
+    vol = ((2*bounds)**2) * (aux / num_samples)
     return vol
-mc_polytope_volume_grad = grad( mc_polytope_volume, 0 )
+
+
 # Formulate and solve the Ellipse problem
 ellipse_n = 2
 ellipse_num_planes = 4 + 5 + 4
@@ -45,13 +59,35 @@ ellipse_d = cp.Variable((ellipse_n,1))
 ellipse_A = cp.Parameter((ellipse_num_planes,2))
 ellipse_b = cp.Parameter((ellipse_num_planes,1))
 ellipse_objective = cp.Maximize( cp.log_det( ellipse_B ) )
-# ellipse_objective = cp.Maximize( cp.sum_squares( ellipse_B ) )
 ellipse_const = []
 for ellipse_i in range( ellipse_A.shape[0] ):
     ellipse_const += [ cp.norm( ellipse_B @ ellipse_A[ellipse_i,:]) + ellipse_A[ellipse_i,:] @ ellipse_d <= ellipse_b[ellipse_i,0] ]
 ellipse_prob = cp.Problem( ellipse_objective, ellipse_const )
-ellipse_prob.is_dgp(dpp=True) # dpp=True
+print(f"Ellipse DCP: {ellipse_prob.is_dgp(dpp=True)}")# # dpp=True
 # ellipse_prob.solve()
+
+
+
+
+# x = cp.Variable()
+# a = cp.Parameter(value=3) 
+# const = [x <= a]
+# objective = cp.Maximize(x)
+# prob = cp.Problem(objective, const)
+# print(f"Simple DCP: {prob.is_dgp(dpp=True)}")
+# prob.solve(requires_grad=True)
+# prob.backward()
+# print(f"x: {x.value}, a_grad:{a.gradient}")
+
+# x = cp.Variable()
+# p = cp.Parameter()
+# quadratic = cp.square(x - 2 * p)
+# problem = cp.Problem(cp.Minimize(quadratic))
+# p.value = 3.
+# problem.solve(requires_grad=True)
+# problem.backward()
+# print("The gradient is {0:0.1f}.".format(p.gradient))
+
 # # Formulate and solve the Circle problem
 # circle_n = 2
 # circle_r = cp.Variable()
