@@ -1,4 +1,4 @@
-# import numpy as np
+import numpy as np
 import cvxpy as cp
 import polytope as pt
 import matplotlib.pyplot as plt
@@ -10,7 +10,7 @@ from obstacles import circle
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 from humansocialforce import *
-import jax.numpy as jnp
+# import jax.numpy as jnp
 
 # Sim parameters
 t = 0
@@ -83,8 +83,8 @@ writer = FFMpegWriter(fps=10, metadata=metadata)
 # exit()
 volume = []
 volume2 = []
-# if 1:
-with writer.saving(fig1, 'Videos/DU_fs_humans_obstacles_v3.mp4', 100): 
+if 1:
+# with writer.saving(fig1, 'Videos/DU_fs_humans_obstacles_v3.mp4', 100): 
     while t < tf:
 
         robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]])
@@ -122,17 +122,17 @@ with writer.saving(fig1, 'Videos/DU_fs_humans_obstacles_v3.mp4', 100):
         ax1[2].set_title('Polytope Volume')
         # print(f"GRAD : { mc_polytope_volume_grad( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), bounds = control_bound, num_samples=50000 ) } ")
 
-        if plot_ellipse:
-            ellipse_A.value = hull.A
-            ellipse_b.value = hull.b.reshape(-1,1)
-            ellipse_prob.solve(requires_grad=True)
-            ellipse_prob.backward()# cannot take gradient
-            # print(f"b grad: {ellipse_b.gradient}")
-            angles   = np.linspace( 0, 2 * np.pi, 100 )
-            ellipse_inner  = (ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value# * np.ones( 1, noangles );
-            ellipse_outer  = (2* ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value
-            ax1[1].plot( ellipse_inner[0,:], ellipse_inner[1,:], 'b', label='Inner Ellipse' )
-            ax1[1].plot( ellipse_outer[0,:], ellipse_outer[1,:], 'g', label='Outer Ellipse' )
+        # if plot_ellipse:
+        #     ellipse_A.value = hull.A
+        #     ellipse_b.value = hull.b.reshape(-1,1)
+        #     ellipse_prob.solve(requires_grad=True)
+        #     ellipse_prob.backward()# cannot take gradient
+        #     print(f"b grad: {ellipse_b.gradient}")
+        #     angles   = np.linspace( 0, 2 * np.pi, 100 )
+        #     ellipse_inner  = (ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value# * np.ones( 1, noangles );
+        #     ellipse_outer  = (2* ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value
+        #     ax1[1].plot( ellipse_inner[0,:], ellipse_inner[1,:], 'b', label='Inner Ellipse' )
+        #     ax1[1].plot( ellipse_outer[0,:], ellipse_outer[1,:], 'g', label='Outer Ellipse' )
             
         controller2.solve()
         if controller2.status == 'infeasible':
@@ -153,7 +153,7 @@ with writer.saving(fig1, 'Videos/DU_fs_humans_obstacles_v3.mp4', 100):
 
         t = t + dt
         
-        writer.grab_frame()
+        # writer.grab_frame()
 
     # def polytope_barrier(  )
 

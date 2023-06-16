@@ -2,6 +2,7 @@ import numpy as np
 import jax
 from jax import jit, grad
 import jax.numpy as jnp
+from cvxpylayers.jax import CvxpyLayer
 import polytope as pt
 import cvxpy as cp
 
@@ -50,7 +51,6 @@ def mc_polytope_volume(A, b, bounds = 30):
     vol = ((2*bounds)**2) * (aux / num_samples)
     return vol
 
-
 # Formulate and solve the Ellipse problem
 ellipse_n = 2
 ellipse_num_planes = 4 + 5 + 4
@@ -66,6 +66,8 @@ ellipse_prob = cp.Problem( ellipse_objective, ellipse_const )
 print(f"Ellipse DCP: {ellipse_prob.is_dgp(dpp=True)}")# # dpp=True
 # ellipse_prob.solve()
 
+# outputs (ellipse_b, ellipse_D) ellipse 
+ellipse_cvxpylayer = CvxpyLayer(ellipse_prob, parameters=[ellipse_A, ellipse_b], variables=[ellipse_B, ellipse_d])
 
 
 
