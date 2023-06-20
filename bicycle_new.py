@@ -1,4 +1,5 @@
 import numpy as np
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Rectangle, Polygon
@@ -48,11 +49,24 @@ class bicycle:
         return np.array([self.X[3,0]*np.cos(self.X[2,0]),
                          self.X[3,0]*np.sin(self.X[2,0]),
                          0,0]).reshape(-1,1)
+    
+    def f_jax(self,X):
+        return jnp.array([X[3,0]*jnp.cos(X[2,0]),
+                          X[3,0]*jnp.sin(X[2,0]),
+                         0,0]).reshape(-1,1)
         
     def df_dx(self):
         return np.array([  
                          [0, 0, -self.X[3,0]*np.sin(self.X[2,0]), np.cos(self.X[2,0])],
                          [0, 0,  self.X[3,0]*np.cos(self.X[2,0]), np.sin(self.X[2,0])],
+                         [0, 0, 0, 0],
+                         [0, 0, 0, 0]
+                         ])
+    
+    def df_dx_jax(self, X):
+        return np.array([  
+                         [0, 0, -X[3,0]*jnp.sin(X[2,0]), jnp.cos(X[2,0])],
+                         [0, 0,  X[3,0]*jnp.cos(X[2,0]), jnp.sin(X[2,0])],
                          [0, 0, 0, 0],
                          [0, 0, 0, 0]
                          ])
@@ -176,7 +190,7 @@ class bicycle:
         dh_dx1 = np.append( 2*(X[0:2] - targetX[0:2]).T, np.array([[0, 0]]), axis = 1 )
         dh_dx2 = - 2*(X[0:2] - targetX[0:2]).T
         
-        h_dot = 2 * (X[0:2] - targetX[0:2]).T @ ( self.f() )[0:2]
+        h_dot = 2 * (X[0:2] - targetX[0:2]).T @ ( self.f_jax(X) )[0:2]
         df_dx = self.df_dx_jax(X)
         dh_dot_dx1 = np.append( ( self.f_jax(X) )[0:2].T, np.array([[0,0]]), axis = 1 ) + 2 * ( self.X[0:2] - targetX[0:2] ).T @ df_dx[0:2,:]
         dh_dot_dx2 = - 2 * self.f_jax(X)[0:2].T
@@ -191,7 +205,7 @@ class bicycle:
  
         h = (X[0:2] - targetX[0:2]).T @ (X[0:2] - targetX[0:2]) - d_min**2
         assert(h >= -0.05)
-        print(f"h :{h}")
+        # print(f"h :{h}")
         dh_dx1 = np.append( 2*(X[0:2] - targetX[0:2]).T, np.array([[0, 0]]), axis = 1 )
         dh_dx2 = - 2*(X[0:2] - targetX[0:2]).T
         

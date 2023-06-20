@@ -22,7 +22,7 @@ control_bound = 2.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
-k_v = 1.5
+k_v = 1.0
 plot_ellipse = True
 
 ######### holonomic controller
@@ -46,11 +46,18 @@ ax1[1].set_ylim([-control_bound-offset, control_bound+offset])
 
 # Obstacles
 obstacles = []
+obstacle_states = []
 obstacles.append( circle( ax1[0], pos = np.array([-1.0,-0.6]), radius = 0.5 ) )  
 obstacles.append( circle( ax1[0], pos = np.array([0.0,-0.6]), radius = 0.5 ) )  
 obstacles.append( circle( ax1[0], pos = np.array([-1.0,2.2]), radius = 0.5 ) )  
 obstacles.append( circle( ax1[0], pos = np.array([0.0,2.2]), radius = 0.5 ) )
-# exit()
+obstacle_states = np.append( obstacles[0].X, np.array([[obstacles[0].radius]]), axis=0 )
+for i in range(1,len(obstacles)):
+    state = np.append( obstacles[i].X, np.array([[obstacles[i].radius]]), axis=0 )
+    obstacle_states = np.append(obstacle_states, state, axis=1  )
+obstacle_states = jnp.asarray(obstacle_states)
+
+# exit()0
 # Robot
 # robot = single_integrator_square( ax1[0], pos = np.array([ 0, 0 ]), dt = dt, plot_polytope=False )
 robot = bicycle( ax1[0], pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), dt = dt, plot_polytope=False )
@@ -83,6 +90,35 @@ writer = FFMpegWriter(fps=10, metadata=metadata)
 # exit()
 volume = []
 volume2 = []
+volume_ellipse = []
+volume_ellipse2 = []
+
+# @jit
+def construct_barrier_from_states(robot_state, obstacle_states, humans_states, human_states_dot ):         
+            # barrier function
+            A = jnp.zeros((1,2)); b = jnp.zeros((1,1))
+            for i in range(obstacle_states.shape[1]):
+                h, dh_dx, _ = robot.barrier_jax( robot_state, obstacle_states[:,i].reshape(-1,1), d_min = 0.5, alpha1 = alpha1 )
+                A = jnp.append( A, dh_dx @ robot.g(), axis = 0 )
+                b = jnp.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
+            for i in range(humans_states.shape[1]):
+                h, dh_dx, _ = robot.barrier_humans_jax( robot_state, humans_states[:,i].reshape(-1,1), human_states_dot[:,i].reshape(-1,1), d_min = 0.5, alpha1 = alpha1 )
+                A = jnp.append( A, dh_dx @ robot.g(), axis = 0 )
+                b = jnp.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
+            return A[1:], b[1:]
+
+def polytope_volume_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b):
+    A, b = construct_barrier_from_states(robot_state, obstacle_states, humans_states, human_states_dot )
+    A2 = jnp.append( -A, control_A, axis=0 )
+    b2 = jnp.append( -b, control_b, axis=0 )
+    solution = ellipse_cvxpylayer( A2, b2 )
+    B = solution[0]
+    d = solution[1]
+    return B, d, ellipse_volume( B, d )
+
+def ellipse_volume( B, d ):
+     return jnp.log( jnp.linalg.det(B) )
+    
 if 1:
 # with writer.saving(fig1, 'Videos/DU_fs_humans_obstacles_v3.mp4', 100): 
     while t < tf:
@@ -94,21 +130,11 @@ if 1:
 
         # desired input
         u2_ref.value = robot.nominal_controller( goal, k_v = k_v )
-            
-        def construct_barrier_from_states(robotX, obstacles, humans ):         
-            # barrier function
-            A = jnp.zeros((1,2)); b = jnp.zeros((1,1))
-            for i in range(len(obstacles)):
-                h, dh_dx, _ = robot.barrier( obstacles[i], d_min = 0.5, alpha1 = alpha1 )
-                A = np.append( A, dh_dx @ robot.g(), axis = 0 )
-                b = np.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
-            for i in range(num_people):
-                h, dh_dx, _ = robot.barrier_humans( humans.X[:,i].reshape(-1,1), humans.controls[:,i].reshape(-1,1), d_min = 0.5, alpha1 = alpha1 )
-                A = np.append( A, dh_dx @ robot.g(), axis = 0 )
-                b = np.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
-            A2.value = np.append( A[1:], -control_bound_polytope.A, axis=0 )
-            b2.value = np.append( b[1:], -control_bound_polytope.b.reshape(-1,1), axis=0 )
+       
 
+        A, b = construct_barrier_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls) )
+        A2.value = np.append( np.asarray(A), -control_bound_polytope.A, axis=0 )
+        b2.value = np.append( np.asarray(b), -control_bound_polytope.b.reshape(-1,1), axis=0 )
         ax1[1].clear()
         ax1[1].set_xlim([-control_bound-offset, control_bound+offset])
         ax1[1].set_ylim([-control_bound-offset, control_bound+offset])
@@ -123,17 +149,16 @@ if 1:
         ax1[2].set_title('Polytope Volume')
         # print(f"GRAD : { mc_polytope_volume_grad( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), bounds = control_bound, num_samples=50000 ) } ")
 
-        # if plot_ellipse:
-        #     ellipse_A.value = hull.A
-        #     ellipse_b.value = hull.b.reshape(-1,1)
-        #     ellipse_prob.solve(requires_grad=True)
-        #     ellipse_prob.backward()# cannot take gradient
-        #     print(f"b grad: {ellipse_b.gradient}")
-        #     angles   = np.linspace( 0, 2 * np.pi, 100 )
-        #     ellipse_inner  = (ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value# * np.ones( 1, noangles );
-        #     ellipse_outer  = (2* ellipse_B.value @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d.value
-        #     ax1[1].plot( ellipse_inner[0,:], ellipse_inner[1,:], 'b', label='Inner Ellipse' )
-        #     ax1[1].plot( ellipse_outer[0,:], ellipse_outer[1,:], 'g', label='Outer Ellipse' )
+        ellipse_B2, ellipse_d2, volume_new = polytope_volume_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
+        if plot_ellipse:
+            angles   = np.linspace( 0, 2 * np.pi, 100 )
+            ellipse_inner  = (ellipse_B2 @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d2# * np.ones( 1, noangles );
+            ellipse_outer  = (2* ellipse_B2 @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d2
+            volume_ellipse2.append(volume_new)
+            ax1[2].plot( volume_ellipse2, 'g--' )
+            ax1[1].plot( ellipse_inner[0,:], ellipse_inner[1,:], 'c--', label='Jax Inner Ellipse' )
+            ax1[1].plot( ellipse_outer[0,:], ellipse_outer[1,:], 'c--', label='Jax Outer Ellipse' )
+            # print(f"  ")
             
         controller2.solve()
         if controller2.status == 'infeasible':

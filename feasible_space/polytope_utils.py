@@ -70,6 +70,10 @@ print(f"Ellipse DCP: {ellipse_prob.is_dgp(dpp=True)}")# # dpp=True
 ellipse_cvxpylayer = CvxpyLayer(ellipse_prob, parameters=[ellipse_A, ellipse_b], variables=[ellipse_B, ellipse_d])
 
 
+# A, b = construct_barrier_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls) )
+# A2.value = np.append( np.asarray(A), -control_bound_polytope.A, axis=0 )
+# b2.value = np.append( np.asarray(b), -control_bound_polytope.b.reshape(-1,1), axis=0 )
+
 
 
 
