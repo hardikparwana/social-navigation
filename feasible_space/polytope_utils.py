@@ -71,6 +71,8 @@ ellipse_cvxpylayer = CvxpyLayer(ellipse_prob, parameters=[ellipse_A, ellipse_b],
 
 
 
+
+
 # x = cp.Variable()
 # a = cp.Parameter(value=3) 
 # const = [x <= a]
