@@ -22,11 +22,13 @@ control_bound = 2.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
-k_v = 1.0
+k_v = 1.5
 plot_ellipse = True
+alpha_polytope = 2.0
+min_polytope_volume = -0.5
 
 ######### holonomic controller
-n = 4 + num_obstacles + num_people # number of constraints
+n = 4 + num_obstacles + num_people + 1 # number of constraints
 u2 = cp.Variable((2,1))
 u2_ref = cp.Parameter((2,1))
 objective2 = cp.Minimize( cp.sum_squares( u2 - u2_ref ) )
@@ -35,6 +37,7 @@ b2 = cp.Parameter((n,1))
 const2 = [A2 @ u2 >= b2]
 controller2 = cp.Problem( objective2, const2 )
 ##########
+
 
 plt.ion()
 fig1, ax1 = plt.subplots( 1, 3, figsize=(18, 6), gridspec_kw={'width_ratios': [5, 5, 2]})# )#, gridspec_kw={'height_ratios': [1, 1]} )
@@ -107,7 +110,7 @@ def construct_barrier_from_states(robot_state, obstacle_states, humans_states, h
                 b = jnp.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
             return A[1:], b[1:]
 
-def polytope_volume_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b):
+def compute_ellipse_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b):
     A, b = construct_barrier_from_states(robot_state, obstacle_states, humans_states, human_states_dot )
     A2 = jnp.append( -A, control_A, axis=0 )
     b2 = jnp.append( -b, control_b, axis=0 )
@@ -116,8 +119,13 @@ def polytope_volume_from_states(robot_state, obstacle_states, humans_states, hum
     d = solution[1]
     return B, d, ellipse_volume( B, d )
 
+def polytope_volume_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b):
+    return compute_ellipse_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b)[2]
+
 def ellipse_volume( B, d ):
      return jnp.log( jnp.linalg.det(B) )
+ 
+polytope_volume_from_states_grad = grad( polytope_volume_from_states, argnums=(0,1,2,3) )
     
 if 1:
 # with writer.saving(fig1, 'Videos/DU_fs_humans_obstacles_v3.mp4', 100): 
@@ -133,12 +141,12 @@ if 1:
        
 
         A, b = construct_barrier_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls) )
-        A2.value = np.append( np.asarray(A), -control_bound_polytope.A, axis=0 )
-        b2.value = np.append( np.asarray(b), -control_bound_polytope.b.reshape(-1,1), axis=0 )
+        A = np.append( np.asarray(A), -control_bound_polytope.A, axis=0 )
+        b = np.append( np.asarray(b), -control_bound_polytope.b.reshape(-1,1), axis=0 )
         ax1[1].clear()
         ax1[1].set_xlim([-control_bound-offset, control_bound+offset])
         ax1[1].set_ylim([-control_bound-offset, control_bound+offset])
-        hull = pt.Polytope( -A2.value, -b2.value )
+        hull = pt.Polytope( -A, -b )
         hull_plot = hull.plot(ax1[1], color = 'g')
         plot_polytope_lines( ax1[1], hull, control_bound )
 
@@ -149,7 +157,7 @@ if 1:
         ax1[2].set_title('Polytope Volume')
         # print(f"GRAD : { mc_polytope_volume_grad( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), bounds = control_bound, num_samples=50000 ) } ")
 
-        ellipse_B2, ellipse_d2, volume_new = polytope_volume_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
+        ellipse_B2, ellipse_d2, volume_new = compute_ellipse_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
         if plot_ellipse:
             angles   = np.linspace( 0, 2 * np.pi, 100 )
             ellipse_inner  = (ellipse_B2 @ np.append(np.cos(angles).reshape(1,-1) , np.sin(angles).reshape(1,-1), axis=0 )) + ellipse_d2# * np.ones( 1, noangles );
@@ -158,8 +166,16 @@ if 1:
             ax1[2].plot( volume_ellipse2, 'g--' )
             ax1[1].plot( ellipse_inner[0,:], ellipse_inner[1,:], 'c--', label='Jax Inner Ellipse' )
             ax1[1].plot( ellipse_outer[0,:], ellipse_outer[1,:], 'c--', label='Jax Outer Ellipse' )
-            # print(f"  ")
+            volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = polytope_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
+            print(f" polytope_volume_from_states_grad: {volume_grad_robot} ")
             
+        h_polytope = volume_new - min_polytope_volume
+        dh_polytope_dx = volume_grad_robot.T
+        A_polytope = np.asarray(dh_polytope_dx @ robot.g())
+        b_polytope = np.asarray(- dh_polytope_dx @ robot.f() - alpha_polytope * h_polytope - np.sum(volume_grad_humansX * humans.controls ))
+        A2.value = np.append( A, np.asarray(A_polytope), axis=0 )
+        b2.value = np.append( b, np.asarray(b_polytope), axis=0 )
+     
         controller2.solve()
         if controller2.status == 'infeasible':
             print(f"QP infeasible")

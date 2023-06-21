@@ -64,7 +64,7 @@ class bicycle:
                          ])
     
     def df_dx_jax(self, X):
-        return np.array([  
+        return jnp.array([  
                          [0, 0, -X[3,0]*jnp.sin(X[2,0]), jnp.cos(X[2,0])],
                          [0, 0,  X[3,0]*jnp.cos(X[2,0]), jnp.sin(X[2,0])],
                          [0, 0, 0, 0],
@@ -187,12 +187,12 @@ class bicycle:
         h = (X[0:2] - targetX[0:2]).T @ (X[0:2] - targetX[0:2]) - d_min**2
         # assert(h >= 0.0)
         # print(f"h :{h}")
-        dh_dx1 = np.append( 2*(X[0:2] - targetX[0:2]).T, np.array([[0, 0]]), axis = 1 )
+        dh_dx1 = jnp.append( 2*(X[0:2] - targetX[0:2]).T, jnp.array([[0, 0]]), axis = 1 )
         dh_dx2 = - 2*(X[0:2] - targetX[0:2]).T
         
         h_dot = 2 * (X[0:2] - targetX[0:2]).T @ ( self.f_jax(X) )[0:2]
         df_dx = self.df_dx_jax(X)
-        dh_dot_dx1 = np.append( ( self.f_jax(X) )[0:2].T, np.array([[0,0]]), axis = 1 ) + 2 * ( self.X[0:2] - targetX[0:2] ).T @ df_dx[0:2,:]
+        dh_dot_dx1 = jnp.append( ( self.f_jax(X) )[0:2].T, jnp.array([[0,0]]), axis = 1 ) + 2 * ( self.X[0:2] - targetX[0:2] ).T @ df_dx[0:2,:]
         dh_dot_dx2 = - 2 * self.f_jax(X)[0:2].T
       
         h1 = h_dot + alpha1 * h 
@@ -206,12 +206,12 @@ class bicycle:
         h = (X[0:2] - targetX[0:2]).T @ (X[0:2] - targetX[0:2]) - d_min**2
         assert(h >= -0.05)
         # print(f"h :{h}")
-        dh_dx1 = np.append( 2*(X[0:2] - targetX[0:2]).T, np.array([[0, 0]]), axis = 1 )
+        dh_dx1 = jnp.append( 2*(X[0:2] - targetX[0:2]).T, jnp.array([[0, 0]]), axis = 1 )
         dh_dx2 = - 2*(X[0:2] - targetX[0:2]).T
         
         h_dot = 2 * (X[0:2] - targetX[0:2]).T @ ( self.f_jax(X)[0:2] - targetU[0:2] )
         df_dx = self.df_dx_jax(X)
-        dh_dot_dx1 = np.append( ( self.f_jax(X)[0:2] - targetU[0:2] ).T, np.array([[0,0]]), axis = 1 ) + 2 * ( X[0:2] - targetX[0:2] ).T @ df_dx[0:2,:]
+        dh_dot_dx1 = jnp.append( ( self.f_jax(X)[0:2] - targetU[0:2] ).T, jnp.array([[0,0]]), axis = 1 ) + 2 * ( X[0:2] - targetX[0:2] ).T @ df_dx[0:2,:]
         dh_dot_dx2 = - 2 * ( self.f()[0:2].T -targetU[0:2] )
         
         h1 = h_dot + alpha1 * h 
