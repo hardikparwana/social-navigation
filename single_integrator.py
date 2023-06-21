@@ -1,5 +1,6 @@
 
 import numpy as np
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Rectangle
@@ -40,8 +41,17 @@ class single_integrator_square:
     def f(self):
         return np.array([0,0]).reshape(-1,1)
     
+    def f_jax(self,X):
+        return jnp.array([0,0]).reshape(-1,1)
+    
     def g(self):
         return np.array([ [1, 0],[0, 1] ])
+    
+    def g_jax(self,X):
+        return jnp.array([ [1.0, 0.0], [0 1] ])
+    
+    def xdot(self,X, U):
+        return self.f_jax(X) + self.g_jax(X) @ U
         
     def step(self,U): #Just holonomic X,T acceleration
 
