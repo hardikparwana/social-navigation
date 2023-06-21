@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import cvxpy as cp
 import polytope as pt
@@ -23,12 +24,13 @@ goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
 k_v = 1.5
-use_ellipse = True
-plot_ellipse = True
+use_ellipse = True#False
+plot_ellipse = True#False
 use_circle = False
 plot_circle = False
-alpha_polytope = 2.0
-min_polytope_volume = -0.5
+alpha_polytope = 1.0
+min_polytope_volume_ellipse = -0.5
+min_polytope_volume_circle = 0.0
 
 ######### holonomic controller
 n = 4 + num_obstacles + num_people + 1 # number of constraints
@@ -98,24 +100,29 @@ volume = []
 volume2 = []
 volume_ellipse = []
 volume_ellipse2 = []
+volume_circle2 = []
 
 @jit
 def construct_barrier_from_states(robot_state, obstacle_states, humans_states, human_states_dot ):         
             # barrier function
             A = jnp.zeros((1,2)); b = jnp.zeros((1,1))
-            for i in range(obstacle_states.shape[1]):
+            # for i in range(obstacle_states.shape[1]):
+            for i in range(len(obstacles)):
                 h, dh_dx, _ = robot.barrier_jax( robot_state, obstacle_states[:,i].reshape(-1,1), d_min = 0.5, alpha1 = alpha1 )
-                A = jnp.append( A, dh_dx @ robot.g(), axis = 0 )
-                b = jnp.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
-            for i in range(humans_states.shape[1]):
+                A = jnp.append( A, dh_dx @ robot.g_jax(robot_state), axis = 0 )
+                b = jnp.append( b, - alpha * h - dh_dx @ robot.f_jax(robot_state), axis = 0 )
+            # for i in range(humans_states.shape[1]):
+            for i in range(humans.X.shape[1]):
                 h, dh_dx, _ = robot.barrier_humans_jax( robot_state, humans_states[:,i].reshape(-1,1), human_states_dot[:,i].reshape(-1,1), d_min = 0.5, alpha1 = alpha1 )
-                A = jnp.append( A, dh_dx @ robot.g(), axis = 0 )
-                b = jnp.append( b, - alpha * h - dh_dx @ robot.f(), axis = 0 )
+                A = jnp.append( A, dh_dx @ robot.g_jax(robot_state), axis = 0 )
+                b = jnp.append( b, - alpha * h - dh_dx @ robot.f_jax(robot_state), axis = 0 )
             return A[1:], b[1:]
-        
+
+@jit       
 def ellipse_volume( B, d ):
      return jnp.log( jnp.linalg.det(B) )
- 
+
+@jit
 def circle_volume( r, c ):
     return jnp.pi * jnp.square(r)
 
@@ -131,8 +138,9 @@ def compute_ellipse_from_states(robot_state, obstacle_states, humans_states, hum
 def compute_circle_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b):
     A, b = construct_barrier_from_states(robot_state, obstacle_states, humans_states, human_states_dot )
     A2 = jnp.append( -A, control_A, axis=0 )
+    A2_root = jnp.linalg.norm( A2, axis=1 )
     b2 = jnp.append( -b, control_b, axis=0 )
-    solution = circle_cvxpylayer( A2, b2 )
+    solution = circle_cvxpylayer( A2, A2_root, b2 )
     r = solution[0]
     c = solution[1]
     return r, c, circle_volume( r, c )
@@ -143,7 +151,10 @@ def polytope_ellipse_volume_from_states(robot_state, obstacle_states, humans_sta
 def polytope_circle_volume_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b):
     return compute_circle_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b)[2]
  
-polytope_volume_from_states_grad = grad( polytope_volume_from_states, argnums=(0,1,2,3) )
+polytope_ellipse_volume_from_states_grad = grad( polytope_ellipse_volume_from_states, argnums=(0,1,2,3) )
+# polytope_ellipse_volume_from_states_grad2 = grad( polytope_ellipse_volume_from_states, argnums=(0) )
+
+polytope_circle_volume_from_states_grad = grad( polytope_circle_volume_from_states, argnums=(0,1,2,3) )
     
 if 1:
 # with writer.saving(fig1, 'Videos/DU_fs_humans_obstacles_v3.mp4', 100): 
@@ -186,7 +197,11 @@ if 1:
                 ax1[2].plot( volume_ellipse2, 'g--' )
                 ax1[1].plot( ellipse_inner[0,:], ellipse_inner[1,:], 'c--', label='Jax Inner Ellipse' )
                 ax1[1].plot( ellipse_outer[0,:], ellipse_outer[1,:], 'c--', label='Jax Outer Ellipse' )
+
             volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = polytope_ellipse_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
+            # t0 = time.time()
+            # volume_grad_robot2 = polytope_ellipse_volume_from_states_grad2(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
+            # print(f"time 2 : {time.time() - t0}")
             print(f" polytope_volume_from_states_grad: {volume_grad_robot} ")
             
             h_polytope = volume_new - min_polytope_volume

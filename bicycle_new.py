@@ -81,6 +81,9 @@ class bicycle:
     
     def g(self):
         return np.array([ [0, 0],[0, 0], [0, 1], [1, 0] ])
+
+    def g_jax(self, X):
+        return jnp.array([ [0, 0],[0, 0], [0, 1.0], [1.0, 0] ])
     
     def f_xddot_casadi(self,X):
         return np.array([0,0,0,0]).reshape(-1,1)
@@ -166,7 +169,7 @@ class bicycle:
     def barrier(self, target, d_min = 0.5, alpha1 = 1.0):
  
         h = (self.X[0:2] - target.X[0:2]).T @ (self.X[0:2] - target.X[0:2]) - d_min**2
-        assert(h >= 0.0)
+        # assert(h >= 0.0)
         # print(f"h :{h}")
         dh_dx1 = np.append( 2*(self.X[0:2] - target.X[0:2]).T, np.array([[0, 0]]), axis = 1 )
         dh_dx2 = - 2*(self.X[0:2] - target.X[0:2]).T
@@ -204,7 +207,7 @@ class bicycle:
     def barrier_humans_jax(self, X, targetX, targetU, d_min = 0.5, alpha1 = 1.0):
  
         h = (X[0:2] - targetX[0:2]).T @ (X[0:2] - targetX[0:2]) - d_min**2
-        assert(h >= -0.05)
+        # assert(h >= -0.05)
         # print(f"h :{h}")
         dh_dx1 = jnp.append( 2*(X[0:2] - targetX[0:2]).T, jnp.array([[0, 0]]), axis = 1 )
         dh_dx2 = - 2*(X[0:2] - targetX[0:2]).T

@@ -56,7 +56,7 @@ ellipse_n = 2
 ellipse_num_planes = 4 + 5 + 4
 ellipse_B = cp.Variable((ellipse_n,ellipse_n), symmetric=True)
 ellipse_d = cp.Variable((ellipse_n,1))
-ellipse_A = cp.Parameter((ellipse_num_planes,2))
+ellipse_A = cp.Parameter((ellipse_num_planes,ellipse_n))
 ellipse_b = cp.Parameter((ellipse_num_planes,1))
 ellipse_objective = cp.Maximize( cp.log_det( ellipse_B ) )
 ellipse_const = []
@@ -70,19 +70,34 @@ print(f"Ellipse DCP: {ellipse_prob.is_dgp(dpp=True)}")# # dpp=True
 ellipse_cvxpylayer = CvxpyLayer(ellipse_prob, parameters=[ellipse_A, ellipse_b], variables=[ellipse_B, ellipse_d])
 
 # Formulate and solve the Circle problem
+# circle_n = 2
+# circle_num_planes = 4 + 5 + 4
+# circle_r = cp.Variable()
+# circle_c = cp.Variable((2,1))
+# circle_A = cp.Parameter((circle_num_planes,2))
+# circle_b = cp.Parameter((circle_num_planes,1))
+# circle_objective = cp.Maximize(circle_r)
+# circle_const = []
+# for i in range( circle_A.shape[0] ):
+#     circle_const += [ circle_A[i,:] @ circle_c + cp.norm(circle_A[i,:]) * circle_r <= circle_b[i,0] ]
+# circle_prob = cp.Problem( circle_objective, circle_const )
+# # circle_prob.solve()
+# circle_cvxpylayer = CvxpyLayer(circle_prob, parameters=[circle_A, circle_b], variables=[circle_r, circle_c])
+
 circle_n = 2
 circle_num_planes = 4 + 5 + 4
 circle_r = cp.Variable()
 circle_c = cp.Variable((2,1))
-circle_A = cp.Parameter((circle_num_planes,2))
+circle_A = cp.Parameter((circle_num_planes,circle_n))
+circle_A_root = cp.Parameter(circle_num_planes)
 circle_b = cp.Parameter((circle_num_planes,1))
 circle_objective = cp.Maximize(circle_r)
 circle_const = []
 for i in range( circle_A.shape[0] ):
-    circle_const += [ circle_A[i,:] @ circle_c + cp.sum_squares(circle_A[i,:]) * circle_r <= circle_b[i,0] ]
+    circle_const += [ circle_A[i,:] @ circle_c + circle_A_root[i] * circle_r <= circle_b[i,0] ]
 circle_prob = cp.Problem( circle_objective, circle_const )
 # circle_prob.solve()
-circle_cvxpylayer = CvxpyLayer(circle_prob, parameters=[circle_A, circle_b], variables=[circle_r, circle_c])
+circle_cvxpylayer = CvxpyLayer(circle_prob, parameters=[circle_A, circle_A_root, circle_b], variables=[circle_r, circle_c])
 
 
 # A, b = construct_barrier_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls) )
