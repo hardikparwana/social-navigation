@@ -69,6 +69,21 @@ print(f"Ellipse DCP: {ellipse_prob.is_dgp(dpp=True)}")# # dpp=True
 # outputs (ellipse_b, ellipse_D) ellipse 
 ellipse_cvxpylayer = CvxpyLayer(ellipse_prob, parameters=[ellipse_A, ellipse_b], variables=[ellipse_B, ellipse_d])
 
+# Formulate and solve the Circle problem
+circle_n = 2
+circle_num_planes = 4 + 5 + 4
+circle_r = cp.Variable()
+circle_c = cp.Variable((2,1))
+circle_A = cp.Parameter((circle_num_planes,2))
+circle_b = cp.Parameter((circle_num_planes,1))
+circle_objective = cp.Maximize(circle_r)
+circle_const = []
+for i in range( circle_A.shape[0] ):
+    circle_const += [ circle_A[i,:] @ circle_c + cp.sum_squares(circle_A[i,:]) * circle_r <= circle_b[i,0] ]
+circle_prob = cp.Problem( circle_objective, circle_const )
+# circle_prob.solve()
+circle_cvxpylayer = CvxpyLayer(circle_prob, parameters=[circle_A, circle_b], variables=[circle_r, circle_c])
+
 
 # A, b = construct_barrier_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls) )
 # A2.value = np.append( np.asarray(A), -control_bound_polytope.A, axis=0 )
@@ -96,15 +111,3 @@ ellipse_cvxpylayer = CvxpyLayer(ellipse_prob, parameters=[ellipse_A, ellipse_b],
 # problem.backward()
 # print("The gradient is {0:0.1f}.".format(p.gradient))
 
-# # Formulate and solve the Circle problem
-# circle_n = 2
-# circle_r = cp.Variable()
-# circle_c = cp.Variable((2,1))
-# circle_A = cp.Parameter((circle_n,2))
-# circle_b = cp.Parameter((circle_n,1))
-# circle_objective = cp.Maximize(circle_r)
-# circle_const = []
-# for i in range( circle_A.shape[0] ):
-#     circle_const += [ circle_A[i,:].reshape(1,-1) @ circle_c + np.linalg.norm(circle_A[i,:]) * circle_r <= circle_b[i,0] ]
-# circle_prob = cp.Problem( circle_objective, circle_const )
-# # circle_prob.solve()
