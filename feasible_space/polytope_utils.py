@@ -79,7 +79,7 @@ ellipse_cvxpylayer = CvxpyLayer(ellipse_prob, parameters=[ellipse_A, ellipse_b],
 # circle_objective = cp.Maximize(circle_r)
 # circle_const = []
 # for i in range( circle_A.shape[0] ):
-#     circle_const += [ circle_A[i,:] @ circle_c + cp.norm(circle_A[i,:]) * circle_r <= circle_b[i,0] ]
+#     circle_const += [ circle_A[i,:] @ circle_c + cp.norm(circle_A[i,:]) @ circle_r <= circle_b[i,0] ]
 # circle_prob = cp.Problem( circle_objective, circle_const )
 # # circle_prob.solve()
 # circle_cvxpylayer = CvxpyLayer(circle_prob, parameters=[circle_A, circle_b], variables=[circle_r, circle_c])

@@ -168,7 +168,6 @@ if 1:
         # desired input
         u2_ref.value = robot.nominal_controller( goal, k_v = k_v )
        
-
         A, b = construct_barrier_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls) )
         A = np.append( np.asarray(A), -control_bound_polytope.A, axis=0 )
         b = np.append( np.asarray(b), -control_bound_polytope.b.reshape(-1,1), axis=0 )

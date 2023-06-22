@@ -18,7 +18,7 @@ from humansocialforce import *
 t = 0
 dt = 0.03
 tf = 15
-alpha1 = 2#5#2.0#3.0#20#6
+alpha1 = 0.5#5#2.0#3.0#20#6
 alpha2 = 6
 control_bound = 1.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
@@ -89,7 +89,9 @@ writer = FFMpegWriter(fps=10, metadata=metadata)
 n  = 4
 m = 2
 def f_robot(t, y, args):
-    return jnp.append( robot.xdot_jax( y[:-m].reshape(-1,1), y[-m:].reshape(-1,1) ), y[-m:].reshape(-1,1), axis=0)
+    control_input = robot.nominal_controller_jax(y[:-m].reshape(-1,1), goal, k_omega = 3.0, k_v = kv)
+    return jnp.append( robot.xdot_jax( y[:-m].reshape(-1,1), control_input ), y[-m:].reshape(-1,1), axis=0)
+    # return jnp.append( robot.xdot_jax( y[:-m].reshape(-1,1), y[-m:].reshape(-1,1) ), y[-m:].reshape(-1,1), axis=0)
 term = ODETerm(f_robot)
 solver = Dopri5()
 
@@ -147,7 +149,7 @@ if 1:
             exit()
             
         # Now do FF-CBF with this input
-        # A_u, b_u = compute_ff_barrier( jnp.asarray(robot.X), jnp.zeros((2,1)), obstacle_states, obstacle_states_dot )
+        A_u, b_u = compute_ff_barrier( jnp.asarray(robot.X), jnp.zeros((2,1)), obstacle_states, obstacle_states_dot )
         A_u, b_u = compute_ff_barrier( jnp.asarray(robot.X), jnp.asarray(u2.value), obstacle_states, obstacle_states_dot )
         A2_u_copy.value = np.append( np.asarray(A_u), -control_bound_polytope.A, axis=0 )
         b2_copy.value = np.append( np.asarray(b_u), -control_bound_polytope.b.reshape(-1,1), axis=0 )
