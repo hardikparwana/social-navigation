@@ -85,6 +85,9 @@ class bicycle:
     def g_jax(self, X):
         return jnp.array([ [0, 0],[0, 0], [0, 1.0], [1.0, 0] ])
     
+    def xdot_jax(self,X, U):
+        return self.f_jax(X) + self.g_jax(X) @ U
+    
     def f_xddot_casadi(self,X):
         return np.array([0,0,0,0]).reshape(-1,1)
         

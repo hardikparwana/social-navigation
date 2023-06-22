@@ -18,14 +18,15 @@ from humansocialforce import *
 t = 0
 dt = 0.03
 tf = 15
-alpha = 2#5#2.0#3.0#20#6
+alpha1 = 2#5#2.0#3.0#20#6
+alpha2 = 6
 control_bound = 1.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 # goal = np.array([-1.0,-1.0]).reshape(-1,1)
 num_people = 0
 num_obstacles = 1
-kx = 30.0
-tf_horizon = 1.0
+kv = 1.5
+tf_horizon = 0.2
 
 ######### holonomic controller
 n = 4 + num_obstacles + num_people# + 1# number of constraints
@@ -39,7 +40,9 @@ b2 = cp.Parameter((n,1))
 const2 = [A2_u @ u2 >= b2]
 # const2 += [alpha_qp >= 0]
 controller2 = cp.Problem( objective2, const2 )
+##########
 
+######### holonomic controller
 n = 4 + num_obstacles + num_people# + 1# number of constraints
 u2_copy = cp.Variable((2,1))
 u2_ref_copy = cp.Parameter((2,1))
@@ -75,7 +78,7 @@ obstacle_states = jnp.asarray(obstacle_states)
 obstacle_states_dot = 0 * obstacle_states
 
 # Robot
-robot = single_integrator_square( ax1[0], pos = np.array([ 1.0, 1.0 ]), dt = dt, plot_polytope=False )
+robot = bicycle( ax1[0], pos = np.array([ 1.0, 1.0, -2*np.pi/3, 0.1 ]), dt = dt, plot_polytope=False )
 control_input_limit_points = np.array([ [control_bound, control_bound], [-control_bound, control_bound], [-control_bound, -control_bound], [control_bound, -control_bound] ])
 control_bound_polytope = pt.qhull( control_input_limit_points )
 ax1[0].scatter( goal[0], goal[1], edgecolors ='g', facecolors='none' )
@@ -83,10 +86,10 @@ ax1[0].scatter( goal[0], goal[1], edgecolors ='g', facecolors='none' )
 metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
 writer = FFMpegWriter(fps=10, metadata=metadata)
 
-n  = 2
+n  = 4
 m = 2
 def f_robot(t, y, args):
-    return jnp.append( robot.xdot_jax( y[:-m].reshape(-1,1), y[m:].reshape(-1,1) ), y[m:].reshape(-1,1), axis=0)
+    return jnp.append( robot.xdot_jax( y[:-m].reshape(-1,1), y[-m:].reshape(-1,1) ), y[-m:].reshape(-1,1), axis=0)
 term = ODETerm(f_robot)
 solver = Dopri5()
 
@@ -114,16 +117,16 @@ def compute_ff_barrier( robot_state, robot_input, obstacle_states, obstacle_stat
         dh_dx_robot = dh_dx[0].T
         dh_dx_obstacle = dh_dx[1].T
         A_u = jnp.append( A_u, dh_dx_robot @ robot.g_jax(robot_state), axis=0 )
-        b_u = jnp.append( b_u, - alpha * h - dh_dx_robot @ robot.f_jax(robot_state) - dh_dx_obstacle @ obstacle_states_dot[:,i].reshape(-1,1), axis=0 )
+        b_u = jnp.append( b_u, - alpha2 * h - dh_dx_robot @ robot.f_jax(robot_state) - dh_dx_obstacle @ obstacle_states_dot[:,i].reshape(-1,1), axis=0 )
     return A_u[1:], b_u[1:]
 
 @jit
 def compute_barrier( robot_state, obstacle_states, obstacle_states_dot ):
     A_u = jnp.zeros((1,2)); b_u = jnp.zeros((1,1))
     for i in range(len(obstacles)):        
-        h, dh_dx_robot, dh_dx_obstacle = robot.barrier_jax( robot_state, obstacle_states[0:2,i].reshape(-1,1), obstacle_states[2,i] )
+        h, dh_dx_robot, dh_dx_obstacle = robot.barrier_jax( robot_state, obstacle_states[0:2,i].reshape(-1,1), obstacle_states[2,i], alpha1 = alpha1 )
         A_u = jnp.append( A_u, dh_dx_robot @ robot.g_jax(robot_state), axis=0 )
-        b_u = jnp.append( b_u, - alpha * h - dh_dx_robot @ robot.f_jax(robot_state) - dh_dx_obstacle @ obstacle_states_dot[0:2,i].reshape(-1,1), axis=0 )
+        b_u = jnp.append( b_u, - alpha2 * h - dh_dx_robot @ robot.f_jax(robot_state) - dh_dx_obstacle @ obstacle_states_dot[0:2,i].reshape(-1,1), axis=0 )
     return A_u[1:], b_u[1:]
 
 volume = []
@@ -132,23 +135,24 @@ if 1:
     while t < tf:
 
         # desired input
-        u2_ref.value = robot.nominal_controller( goal, kx = kx )
+        u2_ref.value = robot.nominal_controller( goal, k_v = kv )
         
         A_u, b_u = compute_barrier( jnp.asarray(robot.X), obstacle_states, obstacle_states_dot )
         A2_u.value = np.append( np.asarray(A_u), -control_bound_polytope.A, axis=0 )
         b2.value = np.append( np.asarray(b_u), -control_bound_polytope.b.reshape(-1,1), axis=0 )
 
-        controller2.solve()
+        controller2.solve()#solver=cp.GUROBI)
         if controller2.status == 'infeasible':
             print(f"QP infeasible")
             exit()
             
         # Now do FF-CBF with this input
+        # A_u, b_u = compute_ff_barrier( jnp.asarray(robot.X), jnp.zeros((2,1)), obstacle_states, obstacle_states_dot )
         A_u, b_u = compute_ff_barrier( jnp.asarray(robot.X), jnp.asarray(u2.value), obstacle_states, obstacle_states_dot )
         A2_u_copy.value = np.append( np.asarray(A_u), -control_bound_polytope.A, axis=0 )
         b2_copy.value = np.append( np.asarray(b_u), -control_bound_polytope.b.reshape(-1,1), axis=0 )
         u2_ref_copy.value = u2_ref.value
-        controller2_copy.solve()#solver=cp.CVXOPT)            
+        controller2_copy.solve()#solver=cp.GUROBI)            
         
         ax1[1].clear()
         ax1[1].set_xlim([-control_bound-offset, control_bound+offset])
@@ -165,8 +169,8 @@ if 1:
         ax1[1].legend()
         ax1[1].set_title('Feasible Space for Control')
         
-        robot.step( u2_copy.value )
         # robot.step( u2.value )
+        robot.step( u2_copy.value )
         robot.render_plot()
         
         # robot.step( np.clip(u2_ref.value, -control_bound, control_bound) )

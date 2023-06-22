@@ -24,10 +24,10 @@ goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
 k_v = 1.5
-use_ellipse = True#False
-plot_ellipse = True#False
-use_circle = False
-plot_circle = False
+use_ellipse = False
+plot_ellipse = False
+use_circle = True
+plot_circle = True
 alpha_polytope = 1.0
 min_polytope_volume_ellipse = -0.5
 min_polytope_volume_circle = 0.0
@@ -204,7 +204,7 @@ if 1:
             # print(f"time 2 : {time.time() - t0}")
             print(f" polytope_volume_from_states_grad: {volume_grad_robot} ")
             
-            h_polytope = volume_new - min_polytope_volume
+            h_polytope = volume_new - min_polytope_volume_ellipse
             dh_polytope_dx = volume_grad_robot.T
             A_polytope = np.asarray(dh_polytope_dx @ robot.g())
             b_polytope = np.asarray(- dh_polytope_dx @ robot.f() - alpha_polytope * h_polytope - np.sum(volume_grad_humansX * humans.controls ))
@@ -221,7 +221,7 @@ if 1:
             volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = polytope_circle_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
             print(f" polytope_volume_from_states_grad: {volume_grad_robot} ")
             
-            h_polytope = volume_new - min_polytope_volume
+            h_polytope = volume_new - min_polytope_volume_circle
             dh_polytope_dx = volume_grad_robot.T
             A_polytope = np.asarray(dh_polytope_dx @ robot.g())
             b_polytope = np.asarray(- dh_polytope_dx @ robot.f() - alpha_polytope * h_polytope - np.sum(volume_grad_humansX * humans.controls ))
