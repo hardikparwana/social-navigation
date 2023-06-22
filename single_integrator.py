@@ -48,9 +48,9 @@ class single_integrator_square:
         return np.array([ [1, 0],[0, 1] ])
     
     def g_jax(self,X):
-        return jnp.array([ [1.0, 0.0], [0 1] ])
+        return jnp.array([ [1.0, 0.0], [0, 1] ])
     
-    def xdot(self,X, U):
+    def xdot_jax(self,X, U):
         return self.f_jax(X) + self.g_jax(X) @ U
         
     def step(self,U): #Just holonomic X,T acceleration
@@ -107,6 +107,12 @@ class single_integrator_square:
         h = (self.X - target.X).T @ (self.X - target.X) - d_min**2
         dh_dx1 = 2 * (self.X - target.X).T
         dh_dx2 = - 2 * ( self.X - target.X ).T
+        return h, dh_dx1, dh_dx2
+    
+    def barrier_jax(self, X, targetX, d_min):
+        h = (X[0:2] - targetX[0:2]).T @ (X[0:2] - targetX[0:2]) - d_min**2
+        dh_dx1 = 2 * (X[0:2] - targetX[0:2]).T
+        dh_dx2 = - 2 * ( X[0:2] - targetX[0:2] ).T
         return h, dh_dx1, dh_dx2
     
     def barrier_humans(self, targetX, d_min = 0.5):
