@@ -53,7 +53,7 @@ def mc_polytope_volume(A, b, bounds = 30):
 
 # Formulate and solve the Ellipse problem
 ellipse_n = 2
-ellipse_num_planes = 4 + 5 + 0
+ellipse_num_planes = 4 + 5 + 4
 ellipse_B = cp.Variable((ellipse_n,ellipse_n), symmetric=True)
 ellipse_d = cp.Variable((ellipse_n,1))
 ellipse_A = cp.Parameter((ellipse_num_planes,ellipse_n))
@@ -85,7 +85,7 @@ ellipse_cvxpylayer = CvxpyLayer(ellipse_prob, parameters=[ellipse_A, ellipse_b],
 # circle_cvxpylayer = CvxpyLayer(circle_prob, parameters=[circle_A, circle_b], variables=[circle_r, circle_c])
 
 circle_n = 2
-circle_num_planes = 4 + 5 + 0
+circle_num_planes = 4 + 5 + 4
 circle_r = cp.Variable()
 circle_c = cp.Variable((2,1))
 circle_A = cp.Parameter((circle_num_planes,circle_n))

@@ -23,11 +23,11 @@ control_bound = 2.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
-k_v = 1.5
-use_ellipse = False
-plot_ellipse = False
-use_circle = True
-plot_circle = True
+k_v = 1.2
+use_ellipse = False#True#False
+plot_ellipse = False#True#False
+use_circle = True#False#True
+plot_circle = True#False#
 alpha_polytope = 1.0
 min_polytope_volume_ellipse = -0.5
 min_polytope_volume_circle = 0.0
@@ -156,8 +156,8 @@ polytope_ellipse_volume_from_states_grad = grad( polytope_ellipse_volume_from_st
 
 polytope_circle_volume_from_states_grad = grad( polytope_circle_volume_from_states, argnums=(0,1,2,3) )
     
-if 1:
-# with writer.saving(fig1, 'Videos/DU_fs_humans_obstacles_v3.mp4', 100): 
+# if 1:
+with writer.saving(fig1, 'Videos/case2_circle.mp4', 100): 
     while t < tf:
 
         robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]])
@@ -246,7 +246,7 @@ if 1:
 
         t = t + dt
         
-        # writer.grab_frame()
+        writer.grab_frame()
 
     # def polytope_barrier(  )
 
