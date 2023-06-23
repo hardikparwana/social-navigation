@@ -157,15 +157,16 @@ class bicycle:
         
         return A, b_f, b_g*self.dt
 
-    def nominal_controller(self, targetX, k_omega = 3.0, k_v = 1.0):
+    def nominal_controller(self, targetX, k_omega = 3.0, k_v = 1.0, k_x = 1.0):
         # k_omega = 3.0#2.0 
         # k_v = 1.0#3.0#0.3#0.15##5.0#0.15
+        # k_x = k_v
         distance = max( np.linalg.norm( self.X[0:2]-targetX[0:2] ), 0.1 )
         desired_heading = np.arctan2( targetX[1,0]-self.X[1,0], targetX[0,0]-self.X[0,0] )
         error_heading = wrap_angle( desired_heading - self.X[2,0] )
 
         omega = k_omega * error_heading * np.tanh( distance )
-        speed = k_v * distance * np.cos(error_heading)
+        speed = k_x * distance * np.cos(error_heading)
         u_r = 1.0 * k_v * ( speed - self.X[3,0] )
         return np.array([u_r, omega]).reshape(-1,1)
     

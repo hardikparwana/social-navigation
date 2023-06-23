@@ -99,9 +99,9 @@ class single_integrator_square:
         
         return A, b_f, b_g*self.dt
     
-    def nominal_controller(self, goal, kx = 3.0):
+    def nominal_controller(self, goal, k_x = 3.0):
         error = self.X - goal
-        return - kx * error
+        return - k_x * error
     
     def barrier(self, target, d_min = 0.5):
         h = (self.X - target.X).T @ (self.X - target.X) - d_min**2
@@ -109,7 +109,7 @@ class single_integrator_square:
         dh_dx2 = - 2 * ( self.X - target.X ).T
         return h, dh_dx1, dh_dx2
     
-    def barrier_jax(self, X, targetX, d_min):
+    def barrier_jax(self, X, targetX, d_min, alpha1):
         h = (X[0:2] - targetX[0:2]).T @ (X[0:2] - targetX[0:2]) - d_min**2
         dh_dx1 = 2 * (X[0:2] - targetX[0:2]).T
         dh_dx2 = - 2 * ( X[0:2] - targetX[0:2] ).T
@@ -119,6 +119,12 @@ class single_integrator_square:
         h = (self.X - targetX).T @ (self.X - targetX) - d_min**2
         dh_dx1 = 2 * (self.X - targetX).T
         dh_dx2 = - 2 * ( self.X - targetX ).T
+        return h, dh_dx1, dh_dx2
+    
+    def barrier_humans_jax(self, X, targetX, targetXdot, d_min = 0.5, alpha1=0.5):
+        h = (X - targetX).T @ (X - targetX) - d_min**2
+        dh_dx1 = 2 * (X - targetX).T
+        dh_dx2 = - 2 * ( X - targetX ).T
         return h, dh_dx1, dh_dx2
 
         
