@@ -160,7 +160,7 @@ class bicycle:
     def nominal_controller(self, targetX, k_omega = 3.0, k_v = 1.0, k_x = 1.0):
         # k_omega = 3.0#2.0 
         # k_v = 1.0#3.0#0.3#0.15##5.0#0.15
-        k_x = k_v
+        # k_x = k_v
         distance = max( np.linalg.norm( self.X[0:2]-targetX[0:2] ), 0.1 )
         desired_heading = np.arctan2( targetX[1,0]-self.X[1,0], targetX[0,0]-self.X[0,0] )
         error_heading = wrap_angle( desired_heading - self.X[2,0] )
@@ -173,7 +173,7 @@ class bicycle:
     def nominal_controller_jax(self, X, targetX, k_omega = 3.0, k_v = 1.0, k_x = 1.0):
         # k_omega = 3.0#2.0 
         # k_v = 1.0#3.0#0.3#0.15##5.0#0.15
-        k_x = k_v
+        # k_x = k_v
         distance = jnp.max( jnp.array([jnp.linalg.norm( X[0:2]-targetX[0:2] ), 0.1]) )
         desired_heading = jnp.arctan2( targetX[1,0]-X[1,0], targetX[0,0]-X[0,0] )
         error_heading = desired_heading - X[2,0]
@@ -259,6 +259,14 @@ class bicycle:
         dh1_dx2 = dh_dot_dx2 + alpha1 * dh_dx2
         
         return h1, dh1_dx1, dh1_dx2
+    
+    def barrier_humans_alpha_jax(self, X, targetX, targetU, d_min = 0.5):
+        h = (X[0:2] - targetX[0:2]).T @ (X[0:2] - targetX[0:2]) - d_min**2
+        h_dot = 2 * (X[0:2] - targetX[0:2]).T @ ( self.f_jax(X)[0:2] - targetU[0:2] )
+        df_dx = self.df_dx_jax(X)
+        dh_dot_dx1 = jnp.append( ( self.f_jax(X)[0:2] - targetU[0:2] ).T, jnp.array([[0,0]]), axis = 1 ) + 2 * ( X[0:2] - targetX[0:2] ).T @ df_dx[0:2,:]
+        dh_dot_dx2 = - 2 * ( self.f_jax(X)[0:2].T -targetU[0:2].T )
+        return dh_dot_dx1, dh_dot_dx2, h_dot, h
     
     def barrier_humans_alpha(self, targetX, targetU, d_min = 0.5):
  

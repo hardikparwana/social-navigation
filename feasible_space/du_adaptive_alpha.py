@@ -21,7 +21,7 @@ control_bound = 2.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
-k_x = 0.5
+k_x = 1.0#0.5
 k_v = 1.0
 
 ######### holonomic controller
@@ -39,7 +39,7 @@ const2 = [A2_u @ u2 + A2_alpha @ alpha_qp>= b2]
 const2 += [alpha_qp >= 0]
 # const2 += [alpha_qp >= 1.2*alpha1*np.ones((num_people,1))]
 const2 += [alpha_qp <= alpha2/2.0*np.ones((num_people,1))]
-# const2 += [alpha_qp == alpha_qp_nominal]
+const2 += [alpha_qp == alpha_qp_nominal]
 controller2 = cp.Problem( objective2, const2 )
 ##########
 
@@ -105,7 +105,7 @@ if 1:
         humans.controls = humans_socialforce.step().state.copy()[:-1,2:4].copy().T
         
         # desired input
-        u2_ref.value = robot.nominal_controller( goal, k_x = k_x )
+        u2_ref.value = robot.nominal_controller( goal, k_x = k_x, k_v = k_v )
 
         # barrier function
         A_u = np.zeros((1,2)); A_alpha = np.zeros((1,num_people)); b = np.zeros((1,1))
