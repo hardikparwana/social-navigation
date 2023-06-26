@@ -22,10 +22,10 @@ alpha1 = 1.0#20#4.0#0.5#50#2
 control_bound = 2.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
-num_obstacles = 0#4
+num_obstacles = 4
 k_v = 1.5
-d_min_human = 0.2
-d_min_obstacle = 0.2
+d_min_human = 0.5
+d_min_obstacle = 0.5
 use_ellipse = False
 plot_ellipse = False
 use_circle = True
@@ -57,15 +57,15 @@ ax1[1].set_ylim([-control_bound-offset, control_bound+offset])
 # Obstacles
 obstacles = []
 obstacle_states = []
-# obstacles.append( circle( ax1[0], pos = np.array([-1.0,-0.6]), radius = 0.5 ) )  
-# obstacles.append( circle( ax1[0], pos = np.array([0.0,-0.6]), radius = 0.5 ) )  
-# obstacles.append( circle( ax1[0], pos = np.array([-1.0,2.2]), radius = 0.5 ) )  
-# obstacles.append( circle( ax1[0], pos = np.array([0.0,2.2]), radius = 0.5 ) )
-# obstacle_states = np.append( obstacles[0].X, np.array([[obstacles[0].radius]]), axis=0 )
-# for i in range(1,len(obstacles)):
-#     state = np.append( obstacles[i].X, np.array([[obstacles[i].radius]]), axis=0 )
-#     obstacle_states = np.append(obstacle_states, state, axis=1  )
-# obstacle_states = jnp.asarray(obstacle_states)
+obstacles.append( circle( ax1[0], pos = np.array([-1.0,-0.6]), radius = 0.5 ) )  
+obstacles.append( circle( ax1[0], pos = np.array([0.0,-0.6]), radius = 0.5 ) )  
+obstacles.append( circle( ax1[0], pos = np.array([-1.0,2.2]), radius = 0.5 ) )  
+obstacles.append( circle( ax1[0], pos = np.array([0.0,2.2]), radius = 0.5 ) )
+obstacle_states = np.append( obstacles[0].X, np.array([[obstacles[0].radius]]), axis=0 )
+for i in range(1,len(obstacles)):
+    state = np.append( obstacles[i].X, np.array([[obstacles[i].radius]]), axis=0 )
+    obstacle_states = np.append(obstacle_states, state, axis=1  )
+obstacle_states = jnp.asarray(obstacle_states)
 
 # exit()0
 # Robot

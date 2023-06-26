@@ -252,13 +252,28 @@ class bicycle:
         h_dot = 2 * (self.X[0:2] - targetX[0:2]).T @ ( self.f()[0:2] - targetU[0:2] )
         df_dx = self.df_dx()
         dh_dot_dx1 = np.append( ( self.f()[0:2] - targetU[0:2] ).T, np.array([[0,0]]), axis = 1 ) + 2 * ( self.X[0:2] - targetX[0:2] ).T @ df_dx[0:2,:]
-        dh_dot_dx2 = - 2 * ( self.f()[0:2].T -targetU[0:2] )
+        dh_dot_dx2 = - 2 * ( self.f()[0:2].T -targetU[0:2].T )
       
         h1 = h_dot + alpha1 * h 
         dh1_dx1 = dh_dot_dx1 + alpha1 * dh_dx1
         dh1_dx2 = dh_dot_dx2 + alpha1 * dh_dx2
         
         return h1, dh1_dx1, dh1_dx2
+    
+    def barrier_humans_alpha(self, targetX, targetU, d_min = 0.5):
+ 
+        h = (self.X[0:2] - targetX[0:2]).T @ (self.X[0:2] - targetX[0:2]) - d_min**2
+        assert(h >= -0.05)
+        # print(f"h :{h}")
+        dh_dx1 = np.append( 2*(self.X[0:2] - targetX[0:2]).T, np.array([[0, 0]]), axis = 1 )
+        dh_dx2 = - 2*(self.X[0:2] - targetX[0:2]).T
+        
+        h_dot = 2 * (self.X[0:2] - targetX[0:2]).T @ ( self.f()[0:2] - targetU[0:2] )
+        df_dx = self.df_dx()
+        dh_dot_dx1 = np.append( ( self.f()[0:2] - targetU[0:2] ).T, np.array([[0,0]]), axis = 1 ) + 2 * ( self.X[0:2] - targetX[0:2] ).T @ df_dx[0:2,:]
+        dh_dot_dx2 = - 2 * ( self.f()[0:2].T -targetU[0:2].T )
+        
+        return dh_dot_dx1, dh_dot_dx2, h_dot, h
         
 
         
