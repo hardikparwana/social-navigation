@@ -18,11 +18,12 @@ tf = 15
 alpha1 = 2#5#2.0#3.0#20#6
 alpha2 = 6
 control_bound = 2.0
-goal = np.array([-3.0,-1.0]).reshape(-1,1)
+# goal = np.array([-3.0,-1.0]).reshape(-1,1)
+goal = np.array([-3.0,1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
 k_x = 1.0#0.5
-k_v = 1.0
+k_v = 1.5#1.0
 
 ######### holonomic controller
 n = 4 + num_obstacles + num_people # number of constraints
@@ -31,7 +32,7 @@ u2_ref = cp.Parameter((2,1))
 alpha_qp = cp.Variable((num_people,1))
 # alpha_qp_nominal = cp.Parameter((num_people,1), value = alpha2*np.ones((num_people,1)))
 alpha_qp_nominal = cp.Parameter((num_people,1), value = alpha1*np.ones((num_people,1)))
-objective2 = cp.Minimize( 10*cp.sum_squares( u2 - u2_ref ) + 1 * cp.sum_squares( alpha_qp - alpha_qp_nominal ) )
+objective2 = cp.Minimize( 100*cp.sum_squares( u2 - u2_ref ) + 1 * cp.sum_squares( alpha_qp - alpha_qp_nominal ) )
 A2_u = cp.Parameter((n,2), value=np.zeros((n,2))) 
 A2_alpha = cp.Parameter((n,num_people), value = np.zeros((n,num_people)))
 b2 = cp.Parameter((n,1))
@@ -39,7 +40,7 @@ const2 = [A2_u @ u2 + A2_alpha @ alpha_qp>= b2]
 const2 += [alpha_qp >= 0]
 # const2 += [alpha_qp >= 1.2*alpha1*np.ones((num_people,1))]
 const2 += [alpha_qp <= alpha2/2.0*np.ones((num_people,1))]
-const2 += [alpha_qp == alpha_qp_nominal]
+# const2 += [alpha_qp == alpha_qp_nominal]
 controller2 = cp.Problem( objective2, const2 )
 ##########
 
@@ -96,8 +97,8 @@ metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!'
 writer = FFMpegWriter(fps=10, metadata=metadata)
 
 volume = []
-if 1:
-# with writer.saving(fig1, 'Videos/DU_test_feasible_space.mp4', 100): 
+# if 1:
+with writer.saving(fig1, 'Videos/DU_adaptive_alpha_standard.mp4', 100): 
     while t < tf:
         robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]]).reshape(1,-1)
         humans_socialforce.state[-1,0:6] = robot_social_state
@@ -110,10 +111,10 @@ if 1:
         # barrier function
         A_u = np.zeros((1,2)); A_alpha = np.zeros((1,num_people)); b = np.zeros((1,1))
         for i in range(len(obstacles)):
-            h, dh_dx, _ = robot.barrier( obstacles[i], d_min = 0.5, alpha1 = alpha1 )
+            h, dh_dx, _ = robot.barrier( obstacles[i], d_min = 0.5, alpha1 = 2*alpha1 )
             A_u = np.append( A_u, dh_dx @ robot.g(), axis = 0 )
             A_alpha = np.append( A_alpha, np.zeros((1,num_people)), axis=0 )
-            b = np.append( b, - alpha2 * h - dh_dx @ robot.f(), axis = 0 )
+            b = np.append( b, - 2*alpha2 * h - dh_dx @ robot.f(), axis = 0 )
         for i in range(num_people):
             # h, dh_dx, dh_dx2 = robot.barrier_humans( humans.X[:,i].reshape(-1,1), humans.controls[:,i].reshape(-1,1), d_min = 0.5, alpha1 = alpha1 )
             # A_u = np.append( A_u, dh_dx @ robot.g(), axis = 0 )
@@ -161,4 +162,4 @@ if 1:
 
         t = t + dt
         
-        # writer.grab_frame()
+        writer.grab_frame()

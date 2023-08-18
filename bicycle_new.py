@@ -1,5 +1,6 @@
 import numpy as np
 import jax.numpy as jnp
+from jax import jit
 import matplotlib.pyplot as plt
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Rectangle, Polygon
@@ -32,6 +33,8 @@ class bicycle:
         # Plot handles
         self.body = ax.scatter([],[],c='g',alpha=1.0,s=70)
         self.plot_polytope = plot_polytope
+        self.radii = 0.25
+        self.axis = ax.plot([self.X[0,0],self.X[0,0]+self.radii*np.cos(self.X[2,0])],[self.X[1,0],self.X[1,0]+self.radii*np.sin(self.X[2,0])])
         if plot_polytope:
             points = np.array( [ [-self.width/2,-self.height/2], [self.width/2,-self.height/2], [self.width/2,self.height/2], [-self.width/2,self.height/2] ] )  
             self.patch = Polygon( points, linewidth = 1, edgecolor='k',facecolor=color, label=plot_label )      
@@ -85,6 +88,7 @@ class bicycle:
     def g_jax(self, X):
         return jnp.array([ [0, 0],[0, 0], [0, 1.0], [1.0, 0] ])
     
+    # @jit
     def xdot_jax(self,X, U):
         return self.f_jax(X) + self.g_jax(X) @ U
     
@@ -122,6 +126,8 @@ class bicycle:
         x = np.array([self.X[0,0],self.X[1,0]])
         theta = self.X[2,0]
         self.body.set_offsets([x[0],x[1]])
+        self.axis[0].set_ydata([self.X[1,0],self.X[1,0]+self.radii*np.sin(self.X[2,0])])
+        self.axis[0].set_xdata( [self.X[0,0],self.X[0,0]+self.radii*np.cos(self.X[2,0])] )
         if self.plot_polytope:
             points = np.array( [ [-self.width/2,-self.height/2], [self.width/2,-self.height/2], [self.width/2,self.height/2], [-self.width/2,self.height/2] ] )
             R = self.rot_mat(theta)
@@ -170,6 +176,7 @@ class bicycle:
         u_r = 1.0 * k_v * ( speed - self.X[3,0] )
         return np.array([u_r, omega]).reshape(-1,1)
     
+    # @jit
     def nominal_controller_jax(self, X, targetX, k_omega = 3.0, k_v = 1.0, k_x = 1.0):
         # k_omega = 3.0#2.0 
         # k_v = 1.0#3.0#0.3#0.15##5.0#0.15
@@ -180,7 +187,7 @@ class bicycle:
         error_heading = jnp.arctan2( jnp.sin(error_heading), jnp.cos(error_heading) )
 
         omega = k_omega * error_heading * jnp.tanh( distance )
-        speed = k_v * distance * jnp.cos(error_heading)
+        speed = k_x * distance * jnp.cos(error_heading)
         u_r = 1.0 * k_v * ( speed - X[3,0] )
         return jnp.array([u_r, omega]).reshape(-1,1)
     
@@ -221,6 +228,14 @@ class bicycle:
         dh1_dx2 = dh_dot_dx2 + alpha1 * dh_dx2
         
         return h1, dh1_dx1, dh1_dx2
+    
+    def barrier_alpha_jax(self, X, targetX, d_min = 0.5):
+        h = (X[0:2] - targetX[0:2]).T @ (X[0:2] - targetX[0:2]) - d_min**2
+        h_dot = 2 * (X[0:2] - targetX[0:2]).T @ ( self.f_jax(X)[0:2]  )
+        df_dx = self.df_dx_jax(X)
+        dh_dot_dx1 = jnp.append( ( self.f_jax(X)[0:2] ).T, jnp.array([[0,0]]), axis = 1 ) + 2 * ( X[0:2] - targetX[0:2] ).T @ df_dx[0:2,:]
+        dh_dot_dx2 = - 2 * ( self.f_jax(X)[0:2].T )
+        return dh_dot_dx1, dh_dot_dx2, h_dot, h
     
     def barrier_humans_jax(self, X, targetX, targetU, d_min = 0.5, alpha1 = 1.0):
  

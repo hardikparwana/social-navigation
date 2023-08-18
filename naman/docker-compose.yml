@@ -1,0 +1,25 @@
+version: "3"
+
+services:
+  openrave:
+    build: .
+    privileged: true
+    tty: true
+    network_mode: "host"
+    volumes:
+      - /home/hardik/Research/cbfkit-internal/naman/naman_planner:/home/naman/catkin_ws/src/naman_planner
+        #- /home/hardik/Desktop/Research/Toyota/cbfkit-internal/naman/naman_planner:/home/naman/catkin_ws/src/naman_planner
+    environment:
+      - DISPLAY=$DISPLAY
+      - NVIDIA_DISABLE_REQUIRE=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

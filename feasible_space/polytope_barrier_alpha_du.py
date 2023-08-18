@@ -199,8 +199,8 @@ polytope_ellipse_volume_from_states_grad = grad( polytope_ellipse_volume_from_st
 
 polytope_circle_volume_from_states_grad = grad( polytope_circle_volume_from_states, argnums=(0,1,2,3) )
     
-# if 1:
-with writer.saving(fig1, 'Videos/DU_fs_alpha_v1.mp4', 100): 
+if 1:
+# with writer.saving(fig1, 'Videos/DU_fs_alpha_v1.mp4', 100): 
     while t < tf:
 
         robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.U[0,0], robot.U[1,0] , goal[0,0], goal[1,0]]).reshape(1,-1)
@@ -313,7 +313,7 @@ with writer.saving(fig1, 'Videos/DU_fs_alpha_v1.mp4', 100):
 
         t = t + dt
         
-        writer.grab_frame()
+        # writer.grab_frame()
 
     # def polytope_barrier(  )
 

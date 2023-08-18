@@ -12,9 +12,11 @@ def compute_polytope_from_points(points):
 
 def polytope_union( polytope_1, polytope_2 ):
     nonconvex = polytope_1.union(polytope_2)  # construct union of convex polytopes
+    return nonconvex
 
 def polytope_intersect( polytope_1, polytope_2 ):
     nonconvex = polytope_1.intersect(polytope_2)  # construct union of convex polytopes
+    return nonconvex
 
 def plot_polytope_lines(ax, hull, u_bound):
     xs = np.linspace( -u_bound, u_bound, 3 )

@@ -89,6 +89,12 @@ class holonomic_car:
         # return self.A @ Rot.T, self.A @ Rot.T @ self.X[0:2].reshape(-1,1)+self.b
         return self.A @ Rot, self.A @ Rot @ self.X[0:2].reshape(-1,1)+self.b
     
+    def polytopic_location_derivative(self):
+        '''
+        Not implemented
+        '''
+        return None
+    
     def polytopic_location_next_state(self):
         Rot = np.array([
             [1.0, 0.0],

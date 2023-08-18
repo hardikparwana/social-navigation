@@ -180,7 +180,7 @@ if 1:
         hull_plot = hull.plot(ax1[1], color = 'g')
         plot_polytope_lines( ax1[1], hull, control_bound )
 
-        volume.append(pt.volume( hull, nsamples=50000 ))
+        #volume.append(pt.volume( hull, nsamples=50000 ))
         volume2.append(np.array(mc_polytope_volume( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), bounds = control_bound)))
         ax1[2].plot( volume, 'r' )
         ax1[2].plot( volume2, 'g' )
