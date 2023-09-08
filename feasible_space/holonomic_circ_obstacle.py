@@ -25,8 +25,8 @@ plt.ion()
 # fig1  =plt.figure()
 xlim = (-1,5); ylim = (-1,5)
 fig1, ax1 = plt.subplots( 1, 3, figsize=(18, 6), gridspec_kw={'width_ratios': [5, 5, 2]})# )#, gridspec_kw={'height_ratios': [1, 1]} )
-ax1[0].set_xlim([-1,5])
-ax1[0].set_ylim([-1,5])
+ax1[0].set_xlim([-0.1,4.5])
+ax1[0].set_ylim([-0.1,4.5])
 
 control_bound = 3.0
 ax1[1].set_xlim([-control_bound-1, control_bound+1])
@@ -37,7 +37,7 @@ dt = 0.03
 tf = 15
 goal = np.array([3,4]).reshape(-1,1)
 ax1[0].scatter( goal[0], goal[1], edgecolors ='g', facecolors='none' )
-alpha = 1.0#3.0
+alpha = 3.0#1.0#3.0
 obstacles = []
 obstacles.append( circle( ax1[0], pos = np.array([2.0,2.0]), radius = 0.5 ) )  
 obstacles.append( circle( ax1[0], pos = np.array([1.0,3.0]), radius = 0.5 ) )  
@@ -54,7 +54,9 @@ writer = FFMpegWriter(fps=10, metadata=metadata)
 
 # if 1:
 volume = []
-with writer.saving(fig1, 'Videos/SI_feasible_space_slow.mp4', 100): 
+pos_x = []
+pos_y = []
+with writer.saving(fig1, 'Videos/SI_feasible_space_paper.mp4', 100): 
     while t < tf:
 
         # desired input
@@ -77,16 +79,19 @@ with writer.saving(fig1, 'Videos/SI_feasible_space_slow.mp4', 100):
 
         robot.step( u2.value )
         robot.render_plot()
+        pos_x.append(robot.X[0,0])
+        pos_y.append(robot.X[1,0])
+        ax1[0].plot(pos_x, pos_y,'g')
 
         ax1[1].clear()
         ax1[1].set_xlim( [-control_bound-1, control_bound+1] )
         ax1[1].set_ylim( [-control_bound-1, control_bound+1] )
         hull = pt.Polytope( -A2.value, -b2.value )
         hull_plot = hull.plot(ax1[1], color = 'g')
-        volume.append(pt.volume( hull, nsamples=50000 ))
+        volume.append(pt.volume( hull))#, nsamples=50000 ))
         plot_polytope_lines( ax1[1], hull, control_bound )
 
-        ax1[1].set_xlabel('Linear Acceleration'); ax1[1].set_ylabel('Angular Velocity')
+        ax1[1].set_xlabel('X Velocity'); ax1[1].set_ylabel('Y Velocity')
         # ax1[1].set_xlabel(r'$u_x$'); ax1[1].set_ylabel(r'$u_y$')
         ax1[1].scatter( u2.value[0,0], u2.value[1,0], c = 'r', label = 'CBF-QP chosen control' )
         ax1[1].legend()
