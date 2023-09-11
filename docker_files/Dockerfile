@@ -23,3 +23,5 @@ RUN python3.11 -m pip install jax[cuda11_pip]==0.4.13 -f https://storage.googlea
 RUN python3.11 -m pip install --upgrade hj-reachability
 RUN python3.11 -m pip install "cbf_opt>=0.6.0"
 RUN python3.11 -m pip install "experiment-wrapper>=1.1"
+RUN python3.11 -m pip install notebook
+RUN python3.11 -m pip install ipympl
