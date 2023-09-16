@@ -3,3 +3,8 @@ videos/*
 setup.sh
 Videos/*
 feasible_space/__pycache__/
+refineCBF/examples/.ipynb_checkpoints/*
+refineCBF/examples/dubins/__pycache__/*
+refineCBF/examples/dubins/*.npy
+refineCBF/refine_cbfs/__pycache__/*
+refineCBF/refine_cbfs/utils/__pycache__/*
