@@ -97,6 +97,10 @@ class DubinsJNPDynamics(DubinsDynamics):
 dyn = DubinsDynamics({"v": dubins_vel, "dt": dt}, test=True)
 dyn_jnp = DubinsJNPDynamics({"v": dubins_vel, "dt": dt}, test=True)
 
+from jax.lib import xla_bridge
+print(xla_bridge.get_backend().platform)
+
+exit()
 ### Environment
 # Defining the discretized state space and the location of obstacles
 
@@ -204,10 +208,10 @@ ax3.plot( obs1[0]+0.5*np.cos(theta), obs1[1]+0.5*np.sin(theta), 'k--', linewidth
 ax3.plot( obs2[0]+0.5*np.cos(theta), obs2[1]+0.5*np.sin(theta), 'k--', linewidth=1.5)
 ax3.plot( obs3[0]+0.5*np.cos(theta), obs3[1]+0.5*np.sin(theta), 'k--', linewidth=1.5 )
 
-fig4, ax4 = plt.subplots()
-im4 = ax4.scatter( X.reshape(-1,1), Y.reshape(-1,1), c = hs.reshape(-1,1), cmap='jet', vmin=-1, vmax=3.0 )
-fig4.colorbar(im4, ax=ax4)
-theta = np.linspace(-np.pi, np.pi, 360)
-ax4.plot( obs1[0]+0.5*np.cos(theta), obs1[1]+0.5*np.sin(theta), 'k--', linewidth=1.5 )
-ax4.plot( obs2[0]+0.5*np.cos(theta), obs2[1]+0.5*np.sin(theta), 'k--', linewidth=1.5)
-ax4.plot( obs3[0]+0.5*np.cos(theta), obs3[1]+0.5*np.sin(theta), 'k--', linewidth=1.5 )
+# fig4, ax4 = plt.subplots()
+# im4 = ax4.scatter( X.reshape(-1,1), Y.reshape(-1,1), c = hs.reshape(-1,1), cmap='jet', vmin=-1, vmax=3.0 )
+# fig4.colorbar(im4, ax=ax4)
+# theta = np.linspace(-np.pi, np.pi, 360)
+# ax4.plot( obs1[0]+0.5*np.cos(theta), obs1[1]+0.5*np.sin(theta), 'k--', linewidth=1.5 )
+# ax4.plot( obs2[0]+0.5*np.cos(theta), obs2[1]+0.5*np.sin(theta), 'k--', linewidth=1.5)
+# ax4.plot( obs3[0]+0.5*np.cos(theta), obs3[1]+0.5*np.sin(theta), 'k--', linewidth=1.5 )
