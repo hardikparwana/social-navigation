@@ -11,9 +11,7 @@ from scipy.optimize import minimize
 
 import pdb
 
-# @jit
-# def step( x,u,dt ):
-#     return x + car_dynamics(x, u) * dt
+run_example = False
 
 
 def mpc_cost_setup(horizon, n, m, objective_func):
@@ -90,52 +88,52 @@ def inequality_constraint_setup(horizon, n, m, state_constraint=None, control_co
 ################## EXAMPLE ###############################
 
 ######## Sim parameters #########
-dt = 0.05
-horizon = 50
-N = horizon
-n = 2
-m = 2
+if run_example:
+    dt = 0.05
+    horizon = 50
+    N = horizon
+    n = 2
+    m = 2
 
-lb = -100 * jnp.ones((N)*(n+m)+n)
-ub =  100 * jnp.ones((N)*(n+m)+n)
+    lb = -100 * jnp.ones((N)*(n+m)+n)
+    ub =  100 * jnp.ones((N)*(n+m)+n)
 
-robot_init_state = jnp.array([0,0]).reshape(-1,1)
-X_guess = jnp.zeros((n,N+1))
-U_guess = jnp.zeros((m,N))
-mpc_X = jnp.concatenate( (X_guess.T.reshape(-1,1), U_guess.T.reshape(-1,1)), axis=0 )[:,0] # has to be a 1D array for ipopt
+    robot_init_state = jnp.array([0,0]).reshape(-1,1)
+    X_guess = jnp.zeros((n,N+1))
+    U_guess = jnp.zeros((m,N))
+    mpc_X = jnp.concatenate( (X_guess.T.reshape(-1,1), U_guess.T.reshape(-1,1)), axis=0 )[:,0] # has to be a 1D array for ipopt
 
-def mpc_stage_cost( X, u ):
-    return jnp.sum( jnp.square( X[:,0] - jnp.array([0.4,1.3]) ) ) + 2.0 * jnp.sum( jnp.square( u ) )
-def dynamics(X, u):
-    return X + u*dt
-def state_inequality_cons(X):
-    return jnp.sum( jnp.square( X[:,0] - jnp.array([ 0, 0.5 ]) ) ) - 0.3**2
-def control_cons(U):
-    return jnp.append( U[:,0] + 1.0, 1.0 - U[:,0] )
+    def mpc_stage_cost( X, u ):
+        return jnp.sum( jnp.square( X[:,0] - jnp.array([0.4,1.3]) ) ) + 2.0 * jnp.sum( jnp.square( u ) )
+    def dynamics(X, u):
+        return X + u*dt
+    def state_inequality_cons(X):
+        return jnp.sum( jnp.square( X[:,0] - jnp.array([ 0, 0.5 ]) ) ) - 0.3**2
+    def control_cons(U):
+        return jnp.append( U[:,0] + 1.0, 1.0 - U[:,0] )
 
-objective, objective_grad = mpc_cost_setup(horizon, n, m,mpc_stage_cost)
-equality_constraint, equality_constraint_grad = equality_constraint_setup(horizon, n, m, dynamics, robot_init_state)
-inequality_constraint, inequality_constraint_grad = inequality_constraint_setup(horizon, n, m, state_inequality_cons, control_cons)
+    objective, objective_grad = mpc_cost_setup(horizon, n, m,mpc_stage_cost)
+    equality_constraint, equality_constraint_grad = equality_constraint_setup(horizon, n, m, dynamics, robot_init_state)
+    inequality_constraint, inequality_constraint_grad = inequality_constraint_setup(horizon, n, m, state_inequality_cons, control_cons)
 
-cons = ( {'type': 'eq', 'fun': equality_constraint, 'jac': equality_constraint_grad},
-        {'type': 'ineq', 'fun': inequality_constraint, 'jac': inequality_constraint_grad} )#,
+    cons = ( {'type': 'eq', 'fun': equality_constraint, 'jac': equality_constraint_grad},
+            {'type': 'ineq', 'fun': inequality_constraint, 'jac': inequality_constraint_grad} )
+    res = minimize(objective, mpc_X, method='SLSQP', jac=objective_grad, constraints=cons, options={'gtol': 1e-6, 'disp': True, 'maxiter': 1000})
+    print(res.message)
 
-res = minimize(objective, mpc_X, method='SLSQP', jac=objective_grad, constraints=cons, options={'gtol': 1e-6, 'disp': True, 'maxiter': 1000})
-print(res.message)
+    sol_X = res.x[0:n*(N+1)].reshape(n,N+1, order='F')
+    sol_U = res.x[-m*N:].reshape(m,N, order='F')
 
-sol_X = res.x[0:n*(N+1)].reshape(n,N+1, order='F')
-sol_U = res.x[-m*N:].reshape(m,N, order='F')
+    fig, ax = plt.subplots(2)
+    ax[0].plot( sol_X[0,:], sol_X[1,:] )
+    circ = plt.Circle((0,0.5),0.3,linewidth = 1, edgecolor='k',facecolor='k')
+    ax[0].add_patch(circ)
+    ax[0].axis('equal')
 
-fig, ax = plt.subplots(2)
-ax[0].plot( sol_X[0,:], sol_X[1,:] )
-circ = plt.Circle((0,0.5),0.3,linewidth = 1, edgecolor='k',facecolor='k')
-ax[0].add_patch(circ)
-ax[0].axis('equal')
+    ax[1].plot(sol_U[0,:], 'b', label='u1')
+    ax[1].plot(sol_U[1,:], 'r*', label='u2')
+    ax[1].legend()
 
-ax[1].plot(sol_U[0,:], 'b', label='u1')
-ax[1].plot(sol_U[1,:], 'r*', label='u2')
-ax[1].legend()
-
-plt.show()
+    plt.show()
 
 

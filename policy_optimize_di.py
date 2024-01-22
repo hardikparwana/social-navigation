@@ -9,25 +9,22 @@ import pdb
 
 noise_cov = 0.01
 noise_mean = 0
-import time
+
 plt.ion()
 fig, ax = plt.subplots()
 ax.set_xlim([-1,4])
 ax.set_ylim([-1,4])
 dt = 0.05
 T = 200
-N = 27
+N = 5
 # H = 10
 
-adapt = True
-adapt_epsilon = True
-
 def robot_step(x,u,dt):
-    return x + u*dt
+    # return x + u*dt
     return x + np.array([x[2,0], x[3,0],u[0,0],u[1,0]]).reshape(-1,1) * dt
 
-def dynamics_step_nominal(x,u,dt):
-    return x + u*dt
+# def dynamics_step_nominal(x,u,dt):
+#     return x + u*dt
 
 def dynamics_step(x,u,dt):
     return x + (u + np.random.normal(noise_mean, np.sqrt(noise_cov), size=(2,1)))*dt
@@ -75,8 +72,7 @@ def human_predict(t,x):
     mu_x = mu_x.at[:,0].set(x[:,0])
     def body(i, inputs):
         tau, mu_x, cov_x = inputs
-        # u = jnp.array([0.05*tau, 0.4*jnp.sin(0.5 * tau)]).reshape(-1,1)
-        u = jnp.array([0.2*tau, 0.4*jnp.sin(0.5 * tau)]).reshape(-1,1)
+        u = jnp.array([0.05*tau, 0.4*jnp.sin(0.5 * tau)]).reshape(-1,1)
         mu_x_temp, cov_x_temp = dynamics_step_noisy(mu_x[:,i], cov_x[:,i], u, dt)
         mu_x = mu_x.at[:,i+1].set( mu_x_temp[:,0] )
         cov_x = cov_x.at[:,i+1].set( cov_x_temp[:,0] )
@@ -92,7 +88,6 @@ ax.scatter( robot_x_des[0], robot_x_des[1], c='g', s=100, marker='x' )
 p = ax.scatter(human[0,0],human[1,0],s=50, c='r')
 p_robot = ax.scatter(robot[0,0],robot[1,0],s=50, c='g', label='With adaptation')
 p_robot_copy = ax.scatter(robot_copy[0,0],robot_copy[1,0],s=50, c='k', label='Without adaptation')
-p_robot_predict = ax.scatter([], [], s=20, c='g')
 ax.legend()
 
 def p_controller(k1, k2, robotX, humanX):
@@ -110,8 +105,8 @@ def robot_predict(k1, k2, robotX, human_pred_mu, human_pred_cov ):
     return final_x
 
 def predict_reward(final_x, human_pred_mu, human_pred_cov, factor):
-    safety = predict_collision(final_x, human_pred_mu, human_pred_cov, factor)
-    return jnp.sum( jnp.square( final_x - robot_x_des ) ) + 5 * jnp.tanh(1.0 / safety)
+    violation = predict_collision(final_x, human_pred_mu, human_pred_cov, factor)
+    return jnp.sum( jnp.square( final_x - robot_x_des ) ) + 10 * jnp.tanh(1.0 / violation)
 
 def predict_collision(final_x, human_pred_mu, human_pred_cov, factor=2):
     violation = jnp.sum( (final_x[:,0] - human_pred_mu[:,-1])**2 ) - ( factor * jnp.sqrt( jnp.mean(human_pred_cov[:,-1]) ) )**2
@@ -126,6 +121,8 @@ k1 = 0.2
 k2 = 0.2
 k1_org = 0.2
 k2_org = 0.2
+
+adapt = True
 
 # Frame optimization problem
 d = cp.Variable((2,1))
@@ -172,24 +169,16 @@ for t in range(T):
         # factor = np.clip(factor + 0.001 * grads_factor, 0, None)
         if collision < 0:
             print(f"Constraint violated, barrier value: {collision}")
-            if adapt and adapt_epsilon:
-                while collision < 0:
-                    factor = np.clip(factor - 0.01, 0, None)
-                    collision = predict_collision( robot_final_x, pred_mu, pred_cov, factor )
-                    print(f"collision: {collision}, factor: {factor}")
-            else:
-                exit()
+            exit()
         
         reward, (reward_grads_k1, reward_grads_k2, reward_grads_factor) = reward_grad( k1, k2, factor, robot, pred_mu, pred_cov )
         # print(f"collision: {collision}, collision grads: {grads_k1}, {grads_k2}")
         k1 = np.clip(k1 - 0.001 * reward_grads_k1, 0, None)
         k2 = np.clip(k2 - 0.001 * reward_grads_k2, 0, None)
-        if adapt_epsilon:
-            if collision > 1.0: # no need
-                factor = min(factor + 0.1, 2.0)
-            else:
-                factor = np.clip(factor - 0.05 * reward_grads_factor, 0.5, None)
-
+        if collision > 0.5: # no need
+            factor = min(factor + 0.1, 2.0)
+        else:
+            factor = np.clip(factor - 0.1 * reward_grads_factor, 0, None)
         print(f"k1: {k1}, k2: {k2}, factor: {factor}, fgrad: {reward_grads_factor}")
 
         # Q = np.eye(2)
@@ -221,7 +210,6 @@ for t in range(T):
     vd = p_controller( k1, k2, robot, human )
     robot = robot_step(robot, vd, dt)
     p_robot.set_offsets([robot[0,0], robot[1,0]])
-    p_robot_predict.set_offsets( robot_final_x.T )
 
     vd_copy = p_controller(k1_org, k2_org, robot_copy, human)
     robot_copy = robot_step(robot_copy, vd_copy, dt)
@@ -234,10 +222,9 @@ for t in range(T):
     p.set_offsets([human[0,0], human[1,0]])
 
     # Step human
-    u = jnp.array([0.2*t*dt, 0.4*jnp.sin(0.5 * t*dt)]).reshape(-1,1)
+    u = jnp.array([0.05*t*dt, 0.4*jnp.sin(0.5 * t*dt)]).reshape(-1,1)
     human = dynamics_step(human, u, dt)
 
-    time.sleep(0.2)
     # Show live animation
     fig.canvas.draw()
     fig.canvas.flush_events()
