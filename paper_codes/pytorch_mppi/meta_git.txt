@@ -1,0 +1,2 @@
+git@github.com:UM-ARM-Lab/pytorch_mppi.git
+* master
