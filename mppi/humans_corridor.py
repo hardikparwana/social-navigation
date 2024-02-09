@@ -15,7 +15,8 @@ dt = 0.1 #0.05
 dt_human = dt
 tf_human = tf
 d_human = 0.4
-goal = np.array([-3, -2]).reshape(-1,1)
+# goal = np.array([-3, -2]).reshape(-1,1)
+goal = np.array([-3, 0]).reshape(-1,1)
 
 
 # Set Figure
@@ -66,12 +67,13 @@ socialforce_initial_state = np.append( np.append( np.copy( humans.X.T ), 0*np.co
 
 humans_socialforce = socialforce.Simulator( socialforce_initial_state, delta_t = dt )
 
-mppi = MPPI(horizon=50, samples=10, input_size=2, dt=dt)
+mppi = MPPI(horizon=20, samples=500, input_size=2, dt=dt)
+# mppi = MPPI(horizon=50, samples=30, input_size=2, dt=dt)
 
 sample_plot = []
 ax.plot([0,0], [0,0], 'r*')
 for i in range(mppi.samples):
-    sample_plot.append( ax.plot(jnp.ones(mppi.horizon), 0*jnp.ones(mppi.horizon), 'g', alpha=0.5) )
+    sample_plot.append( ax.plot(jnp.ones(mppi.horizon), 0*jnp.ones(mppi.horizon), 'g', alpha=0.2) )
 sample_plot.append( ax.plot(jnp.ones(mppi.horizon), 0*jnp.ones(mppi.horizon), 'r') )
 # plt.show()    
 def robot_step(x,u,dt):
