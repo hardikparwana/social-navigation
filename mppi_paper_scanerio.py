@@ -14,19 +14,18 @@ from jax import config
 config.update("jax_enable_x64", True)
 
 # Simulation parameters
-human_noise_cov = 1.0 # 4.0 #4.0 #0.5
+human_noise_cov = 4.0 # 4.0 #4.0 #0.5
 human_noise_mean = 0
-dt = 0.05
+dt = 0.05 #0.05
 T = 30 # simulation steps
-horizon = 30
-N = horizon
-control_bound = 4 #4
+control_bound = 4 #7 #4
+kx = 4.0
 sensing_radius = 2
 factor = 2.0 # no of standard deviations
 choice = 0
 samples = 50
-horizon = 50
-human_ci_alpha = 0.02
+horizon = 50 #100 #50
+human_ci_alpha = 0.005
 
 fig, ax = plt.subplots()
 ax.set_xlim([-6,5])
@@ -58,7 +57,17 @@ def human_step_noisy(mu_x,cov_x,u,dt):
 if choice:
     mppi = MPPI(horizon=horizon, samples=samples, input_size=2, dt=dt)
 else:
-    mppi = MPPI_FORESEE(horizon=horizon, samples=samples, input_size=2, dt=dt, sensing_radius=sensing_radius, human_noise_cov=human_noise_cov, std_factor=factor)
+    control_init_ratio = (robot_goal[1,0]-robot.X[1,0])/(robot_goal[0,0]-robot.X[0,0])
+
+    #generate initial guess
+    u_guess = jnp.zeros((horizon, 2))
+    robot_x = jnp.copy(robot.X)
+    for i in range(horizon):
+        u_robot = jnp.clip( kx * ( robot_goal - robot_x ), -control_bound, control_bound)
+        u_guess = u_guess.at[i,:].set(u_robot[:,0])
+        robot_x = robot_x + u_robot * dt
+    # u_guess = None
+    mppi = MPPI_FORESEE(horizon=horizon, samples=samples, input_size=2, dt=dt, sensing_radius=sensing_radius, human_noise_cov=human_noise_cov, std_factor=factor, control_bound=control_bound, control_init_ratio=control_init_ratio, u_guess=u_guess)
 
 sample_plot = []
 ax.plot([0,0], [0,0], 'r*')
@@ -75,6 +84,9 @@ for i in range(mppi.samples):
 # Human plot
 
 robot_action = 0
+
+confidence_ellipse(human_mu, np.eye(2) * (sensing_radius**2), ax, n_std=1, edgecolor = 'green', label='Sensing Radius')
+ax.legend(loc='lower left')
 
 # Run Simulation
 for t in range(30):
@@ -107,13 +119,17 @@ for t in range(30):
 
         # Human Prediction
         human_sample_cov_plot[i].remove()
-        human_sample_cov_plot[i] = plt.fill_between( human_mus[2*i,:], human_mus[2*i+1,:]-factor*np.sqrt(human_covs[2*i+1,:]), human_mus[2*i+1,:]+factor*np.sqrt(human_covs[2*i+1,:]), facecolor='r', alpha=human_ci_alpha )
+        if 0: #i==0:
+            human_sample_cov_plot[i] = plt.fill_between( human_mus[2*i,:], human_mus[2*i+1,:]-factor*np.sqrt(human_covs[2*i+1,:]), human_mus[2*i+1,:]+factor*np.sqrt(human_covs[2*i+1,:]), facecolor='r', alpha=human_ci_alpha, label='State Prediction Uncertainty' )
+        else:
+            human_sample_cov_plot[i] = plt.fill_between( human_mus[2*i,:], human_mus[2*i+1,:]-factor*np.sqrt(human_covs[2*i+1,:]), human_mus[2*i+1,:]+factor*np.sqrt(human_covs[2*i+1,:]), facecolor='r', alpha=human_ci_alpha )
         human_sample_plot[i][0].set_xdata( human_mus[2*i, :] )
         human_sample_plot[i][0].set_ydata( human_mus[2*i+1, :] )
         
 
     sample_plot[-1][0].set_xdata( robot_chosen_states[0, :] )
     sample_plot[-1][0].set_ydata( robot_chosen_states[1, :] )
+    ax.legend(loc='lower left')
 
     
 
