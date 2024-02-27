@@ -53,7 +53,7 @@ class humans:
         self.Xs = np.append(self.Xs,self.X,axis=1)
         self.Us = np.append(self.Us,self.U,axis=1)
         return self.X
-
+    
     def render_plot(self):
         x = np.array([self.X[0,0],self.X[1,0]])
         self.body.set_offsets([x[0],x[1]])

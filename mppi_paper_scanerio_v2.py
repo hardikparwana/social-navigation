@@ -18,13 +18,13 @@ human_noise_cov = 4.0 # 4.0 #4.0 #0.5
 human_noise_mean = 0
 dt = 0.05 #0.05
 T = 30 # simulation steps
-control_bound = 4 #7 #4
+control_bound = 7 #7 #4
 kx = 4.0
 sensing_radius = 2
 factor = 2.0 # no of standard deviations
 choice = 0
-samples = 10000 #100
-horizon = 50 #100 #50
+samples = 5000 #100
+horizon = 80 #50 #100 #50
 human_ci_alpha = 0.005
 
 fig, ax = plt.subplots()
@@ -96,8 +96,8 @@ ax.legend(loc='lower left')
 #     return cost
 
 # @jit
-def cost_func(robot_state, human_state_mu, human_state_cov):
-    human_sigma_points, human_sigma_weights = generate_sigma_points_gaussian( human_state_mu, jnp.diag(human_state_cov[:,0]), 0*human_state_mu, 1.0 )
+def cost_func(robot_state, human_sigma_points, human_sigma_weights):
+    # human_sigma_points, human_sigma_weights = generate_sigma_points_gaussian( human_state_mu, jnp.diag(human_state_cov[:,0]), 0*human_state_mu, 1.0 )
     human_dist_sigma_points = jnp.linalg.norm(robot_state - human_sigma_points, axis=0).reshape(1,-1)
     mu_human_dist, cov_human_dist = get_mean_cov( human_dist_sigma_points, human_sigma_weights )
     cost = 1.0 * ((robot_state-robot_goal).T @ (robot_state-robot_goal))[0,0] + 10.0 / jnp.max(  jnp.array([mu_human_dist[0,0] - MPPI_FORESEE.std_factor * jnp.sqrt(cov_human_dist[0,0]), 0.01 ]) )
@@ -111,6 +111,9 @@ def cost_func(robot_state, human_state_mu, human_state_cov):
 # Unaware: 575, 633, 634
 
 # Run Simulation
+
+human_sigma_points, human_sigma_weights = generate_sigma_points_gaussian( human_mu, jnp.diag(human_cov[:,0]), 0*human_mu, 1.0 )
+
 cost = 0
 for t in range(30):
 
@@ -126,8 +129,15 @@ for t in range(30):
 
     if t>0:
         robot.step( robot_action )
-        human_mu, human_cov = human_step_noisy(human_mu, human_cov, u_human, dt)    
-        cost = cost + cost_func( robot.X, human_mu, human_cov )
+        # human_mu, human_cov = human_step_noisy(human_mu, human_cov, u_human, dt)    
+
+        expanded_states, expanded_weights = MPPI_FORESEE.human_sigma_point_expand_actual( human_sigma_points, human_sigma_weights, robot.X )
+        human_mu, human_cov, human_sigma_points,  human_sigma_weights = sigma_point_compress( expanded_states, expanded_weights )
+        human_cov = jnp.diag(human_cov).reshape(-1,1)
+
+        # cost = cost + cost_func( robot.X, human_sigma_points, human_sigma_weights )
+        cost = cost + MPPI_FORESEE.single_sample_state_cost(robot.X, human_sigma_points, human_sigma_weights, robot_goal)
+
 
     
     t0 = time.time()
