@@ -35,7 +35,13 @@ class MPPI_FORESEE():
     control_bound_lb = 0
     control_bound_ub = 0
 
-    def __init__(self, horizon=10, samples = 10, input_size = 2, dt=0.05, sensing_radius=2, human_noise_cov=0.01, std_factor=1.96, control_bound=7, control_init_ratio=1, u_guess=None, use_GPU=True):
+    human_nominal_speed = jnp.array([-3.0,0]).reshape(-1,1)
+    human_repulsion_gain = 2.0
+    costs_lambda = 300
+    cost_goal_coeff = 1.0
+    cost_safety_coeff = 10.0
+
+    def __init__(self, horizon=10, samples = 10, input_size = 2, dt=0.05, sensing_radius=2, human_noise_cov=0.01, std_factor=1.96, control_bound=7, control_init_ratio=1, u_guess=None, use_GPU=True, human_nominal_speed = jnp.array([-3.0,0]).reshape(-1,1), human_repulsion_gain = 2.0, costs_lambda = 300, cost_goal_coeff = 1.0, cost_safety_coeff = 10.0):
         MPPI_FORESEE.key = jax.random.PRNGKey(111)
         MPPI_FORESEE.human_n = 2
         MPPI_FORESEE.robot_n = 2
@@ -47,6 +53,11 @@ class MPPI_FORESEE():
         MPPI_FORESEE.dt = dt
         MPPI_FORESEE.std_factor = std_factor
         MPPI_FORESEE.use_gpu = use_GPU
+        MPPI_FORESEE.human_nominal_speed = human_nominal_speed
+        MPPI_FORESEE.human_repulsion_gain = human_repulsion_gain
+        MPPI_FORESEE.costs_lambda = costs_lambda
+        MPPI_FORESEE.cost_goal_coeff = cost_goal_coeff
+        MPPI_FORESEE.cost_safety_coeff = cost_safety_coeff
 
         self.input_size = input_size        
         MPPI_FORESEE.control_bound = control_bound
@@ -72,7 +83,7 @@ class MPPI_FORESEE():
         human_dist_sigma_points = jnp.linalg.norm(robot_state - human_sigma_points, axis=0).reshape(1,-1)
         mu_human_dist, cov_human_dist = get_mean_cov( human_dist_sigma_points, human_sigma_weights )
         # cost_total = cost_total + 1.0 * ((robot_state-goal).T @ (robot_state-goal))[0,0] + 3.0 / jnp.max(  jnp.array([mu_human_dist[0,0] - MPPI_FORESEE.std_factor * jnp.sqrt(cov_human_dist[0,0]), 0.01 ]) )
-        cost = 1.0 * ((robot_state-goal).T @ (robot_state-goal))[0,0] + 5.0 / jnp.max(  jnp.array([mu_human_dist[0,0] - MPPI_FORESEE.std_factor * jnp.sqrt(cov_human_dist[0,0]), 0.01 ]) )
+        cost = MPPI_FORESEE.cost_goal_coeff * ((robot_state-goal).T @ (robot_state-goal))[0,0] + MPPI_FORESEE.cost_safety_coeff / jnp.max(  jnp.array([mu_human_dist[0,0] - MPPI_FORESEE.std_factor * jnp.sqrt(cov_human_dist[0,0]), 0.01 ]) )
         return cost
     
     @staticmethod
@@ -87,7 +98,7 @@ class MPPI_FORESEE():
     @jit
     def weighted_sum(U, perturbation, costs):#weights):
         costs = costs - jnp.min(costs)
-        lambd = 300
+        lambd = MPPI_FORESEE.costs_lambda #300
         weights = jnp.exp( - 1.0/lambd * costs )   
         normalization_factor = jnp.sum(weights)
         def body(i, inputs):
@@ -99,7 +110,8 @@ class MPPI_FORESEE():
     @staticmethod
     @jit
     def true_func(u_human, mu_x, robot_x):
-        u_human = u_human - (robot_x - mu_x) / jnp.clip(jnp.linalg.norm( mu_x-robot_x ), 0.01, None) * ( 2.0 * jnp.tanh( 1.0 / jnp.linalg.norm( mu_x-robot_x ) ) )
+        # u_human = u_human - (robot_x - mu_x) / jnp.clip(jnp.linalg.norm( mu_x-robot_x ), 0.01, None) * ( 2.0 * jnp.tanh( 1.0 / jnp.linalg.norm( mu_x-robot_x ) ) )
+        u_human = u_human - (robot_x - mu_x) / jnp.clip(jnp.linalg.norm( mu_x-robot_x ), 0.01, None) * ( MPPI_FORESEE.human_repulsion_gain * jnp.tanh( 1.0 / jnp.linalg.norm( mu_x-robot_x ) ) )
         return u_human
 
     @staticmethod
@@ -108,7 +120,7 @@ class MPPI_FORESEE():
         return u_human
   
     def human_dynamics( human_x, robot_x ):
-        u = jnp.array([-3.0,0]).reshape(-1,1)
+        u = MPPI_FORESEE.human_nominal_speed #jnp.array([-3.0,0]).reshape(-1,1)
         u_human = u #lax.cond( jnp.linalg.norm( human_x-robot_x )<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, robot_x)
         # mu, cov = human_x + u_human * MPPI_FORESEE.dt, 0.0 * jnp.eye(MPPI_FORESEE.human_n)
         mu, cov = human_x + u_human * MPPI_FORESEE.dt, MPPI_FORESEE.human_noise_cov * jnp.eye(MPPI_FORESEE.human_n) * MPPI_FORESEE.dt**2
@@ -116,7 +128,7 @@ class MPPI_FORESEE():
         return mu, cov
     
     def human_dynamics_actual( human_x, robot_x ):
-        u = jnp.array([-3.0,0]).reshape(-1,1)
+        u = MPPI_FORESEE.human_nominal_speed #jnp.array([-3.0,0]).reshape(-1,1)
         u_human = lax.cond( jnp.linalg.norm( human_x-robot_x )<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, robot_x)
         # mu, cov = human_x + u_human * MPPI_FORESEE.dt, 0.0 * jnp.eye(MPPI_FORESEE.human_n)
         mu, cov = human_x + u_human * MPPI_FORESEE.dt, MPPI_FORESEE.human_noise_cov * jnp.eye(MPPI_FORESEE.human_n) * MPPI_FORESEE.dt**2

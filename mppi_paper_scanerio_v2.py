@@ -27,6 +27,27 @@ samples = 5000 #100
 horizon = 80 #50 #100 #50
 human_ci_alpha = 0.005
 
+# cost terms
+human_nominal_speed = jnp.array([-3.0,0]).reshape(-1,1)
+human_repulsion_gain = 2.0
+costs_lambda = 300
+cost_goal_coeff = 1.0
+cost_safety_coeff = 10.0 #10.0
+
+# Good cases
+# 1. bound =7, samples=5000, horizon=80, lambda=300, costs coeff: 1, 5
+
+# 0.5, 1.0, 1.5, 2.0, 2.5, 3.0
+# 1: 675, 610, 577, 548, 525, 506
+# aware: 606, 570, 544, 526, 511, 498
+
+# 2.0
+# 
+
+gains = np.array([0.5, 1.0, 1.5, 2.0, 2.5, 3.0])
+unaware = np.array([675, 610, 577, 548, 525, 506])
+aware = np.array([606, 570, 544, 526, 511, 498])
+
 fig, ax = plt.subplots()
 ax.set_xlim([-6,5])
 ax.set_ylim([-2,9])
@@ -67,7 +88,7 @@ else:
         u_guess = u_guess.at[i,:].set(u_robot[:,0])
         robot_x = robot_x + u_robot * dt
     # u_guess = None
-    mppi = MPPI_FORESEE(horizon=horizon, samples=samples, input_size=2, dt=dt, sensing_radius=sensing_radius, human_noise_cov=human_noise_cov, std_factor=factor, control_bound=control_bound, control_init_ratio=control_init_ratio, u_guess=u_guess)
+    mppi = MPPI_FORESEE(horizon=horizon, samples=samples, input_size=2, dt=dt, sensing_radius=sensing_radius, human_noise_cov=human_noise_cov, std_factor=factor, control_bound=control_bound, control_init_ratio=control_init_ratio, u_guess=u_guess, human_nominal_speed=human_nominal_speed, human_repulsion_gain=human_repulsion_gain, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff)
 
 plot_num_samples = 20
 sample_plot = []
@@ -96,12 +117,12 @@ ax.legend(loc='lower left')
 #     return cost
 
 # @jit
-def cost_func(robot_state, human_sigma_points, human_sigma_weights):
-    # human_sigma_points, human_sigma_weights = generate_sigma_points_gaussian( human_state_mu, jnp.diag(human_state_cov[:,0]), 0*human_state_mu, 1.0 )
-    human_dist_sigma_points = jnp.linalg.norm(robot_state - human_sigma_points, axis=0).reshape(1,-1)
-    mu_human_dist, cov_human_dist = get_mean_cov( human_dist_sigma_points, human_sigma_weights )
-    cost = 1.0 * ((robot_state-robot_goal).T @ (robot_state-robot_goal))[0,0] + 10.0 / jnp.max(  jnp.array([mu_human_dist[0,0] - MPPI_FORESEE.std_factor * jnp.sqrt(cov_human_dist[0,0]), 0.01 ]) )
-    return cost
+# def cost_func(robot_state, human_sigma_points, human_sigma_weights):
+#     # human_sigma_points, human_sigma_weights = generate_sigma_points_gaussian( human_state_mu, jnp.diag(human_state_cov[:,0]), 0*human_state_mu, 1.0 )
+#     human_dist_sigma_points = jnp.linalg.norm(robot_state - human_sigma_points, axis=0).reshape(1,-1)
+#     mu_human_dist, cov_human_dist = get_mean_cov( human_dist_sigma_points, human_sigma_weights )
+#     cost = 1.0 * ((robot_state-robot_goal).T @ (robot_state-robot_goal))[0,0] + 10.0 / jnp.max(  jnp.array([mu_human_dist[0,0] - MPPI_FORESEE.std_factor * jnp.sqrt(cov_human_dist[0,0]), 0.01 ]) )
+#     return cost
 
 # aware: cost: 410
 # unaware: cost 402
@@ -115,18 +136,17 @@ def cost_func(robot_state, human_sigma_points, human_sigma_weights):
 human_sigma_points, human_sigma_weights = generate_sigma_points_gaussian( human_mu, jnp.diag(human_cov[:,0]), 0*human_mu, 1.0 )
 
 cost = 0
-for t in range(30):
+for t in range(T):
 
     # Move humans
     # human.step( human_input(t*dt) )
     # robot.step( jnp.zeros((2,1)) )
 
-    u_human = human_input(t*dt)
-    if jnp.linalg.norm( human_mu-robot.X )<2.0:            
-            # u = u - (robot.X - human_mu) / jnp.linalg.norm( human_mu-robot.X ) * ( 1.0 * jnp.tanh( 1.0 / jnp.linalg.norm( human_mu-robot.X ) ) )
-            u_human = u_human - (robot.X - human_mu) / jnp.clip(jnp.linalg.norm( human_mu-robot.X ), 0.01, None) * ( 2.0 * jnp.tanh( 1.0 / jnp.linalg.norm( human_mu-robot.X ) ) )
+    # u_human = human_input(t*dt)
+    # if jnp.linalg.norm( human_mu-robot.X )<2.0:            
+    #         # u = u - (robot.X - human_mu) / jnp.linalg.norm( human_mu-robot.X ) * ( 1.0 * jnp.tanh( 1.0 / jnp.linalg.norm( human_mu-robot.X ) ) )
+    #         u_human = u_human - (robot.X - human_mu) / jnp.clip(jnp.linalg.norm( human_mu-robot.X ), 0.01, None) * ( 2.0 * jnp.tanh( 1.0 / jnp.linalg.norm( human_mu-robot.X ) ) )
     
-
     if t>0:
         robot.step( robot_action )
         # human_mu, human_cov = human_step_noisy(human_mu, human_cov, u_human, dt)    
