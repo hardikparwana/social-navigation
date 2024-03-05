@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 from robot_models.single_integrator import single_integrator
+from robot_models.unicycle import unicycle
 from robot_models.humans import humans
 from utils import *
 from mppi_foresee_multi_humans import *
@@ -12,7 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 from humansocialforce import *
-from obstacles import rectangle
+from obstacles import rectangle, circle
 
 # from jax import config
 # config.update("jax_enable_x64", True)
@@ -21,6 +22,7 @@ from obstacles import rectangle
 # Simulatiojn Parameters
 num_humans = 10
 d_human = 0.4
+use_GPU = False
 
 # Simulation parameters
 human_noise_cov = 4.0 # 4.0 #4.0 #0.5
@@ -33,7 +35,7 @@ kx = 4.0
 sensing_radius = 2
 factor = 2.0 # no of standard deviations
 choice = 0
-samples = 3000 #100
+samples = 500 #100
 horizon = 40 #80 #50 #100 #50
 human_ci_alpha = 0.05 #0.005
 
@@ -60,6 +62,7 @@ plt.legend(loc='upper right')
 # Initialize robot
 # robot = single_integrator( ax, pos=np.array([5.0,-1.0]), dt=dt )
 robot = single_integrator( ax, pos=np.array([2.0,1.3]), dt=dt )
+robot = unicycle( ax, pos=np.array([2.0,1.3, -np.pi/2]), dt=dt )
 robot_goal = np.array([-3.0, -2.0]).reshape(-1,1)
 ax.scatter(robot_goal[0,0], robot_goal[1,0], c='g', s=70)
 
@@ -69,11 +72,19 @@ ax.scatter(robot_goal[0,0], robot_goal[1,0], c='g', s=70)
 # Setup environment
 # Initialize obstacles
 obstacles = []
+obstacles.append(circle(ax, pos=np.array([1.5, 1.0]), radius=1.0))
+obstacles.append(circle(ax, pos=np.array([1.5, -3.5]), radius=1.0))
 # obstacles.append( rectangle( ax, pos = np.array([0.5,1.0]), width = 2.5 ) )        
 # obstacles.append( rectangle( ax, pos = np.array([-0.75,-4.5]), width = 6.0 ) )
 # obstacles.append( rectangle( ax, pos = np.array([-1.28,3.3]), height = 4.0 ) )
 # obstacles.append( rectangle( ax, pos = np.array([-4.0,1.0]), height = 12.0 ) )
 num_obstacles = len(obstacles)
+obstacleX = None
+for i in range(num_obstacles):
+    if i==0:
+        obstaclesX = np.copy(obstacles[0].X)
+    else:
+        obstaclesX = np.append(obstaclesX, obstacles[i].X, axis=1)
 
 # Initialize humans
 horizon_human = horizon
@@ -103,6 +114,9 @@ humans.goals[0,7] =  4.0; humans.goals[1,7] = -1.6;
 humans.goals[0,8] =  4.0; humans.goals[1,8] = -0.6;
 humans.goals[0,9] =  4.0; humans.goals[1,9] = -1.9;
 
+humans.U = np.tile( human_nominal_speed, (1,num_humans) )
+# human_nominal_speed = jnp.copy(humans.U)
+
 
 humans.render_plot(humans.X)
 
@@ -120,7 +134,7 @@ u_guess = jnp.zeros((horizon, 2))
 #     u_guess = u_guess.at[i,:].set(u_robot[:,0])
 #     robot_x = robot_x + u_robot * dt
 # u_guess = None
-mppi = MPPI_FORESEE(horizon=horizon, samples=samples, input_size=2, dt=dt, sensing_radius=sensing_radius, human_noise_cov=human_noise_cov, std_factor=factor, control_bound=control_bound, control_init_ratio=control_init_ratio, u_guess=u_guess, human_nominal_speed=human_nominal_speed, human_repulsion_gain=human_repulsion_gain, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, num_humans=num_humans, num_obstacles = num_obstacles)
+mppi = MPPI_FORESEE(horizon=horizon, samples=samples, input_size=2, dt=dt, sensing_radius=sensing_radius, human_noise_cov=human_noise_cov, std_factor=factor, control_bound=control_bound, control_init_ratio=control_init_ratio, u_guess=u_guess, human_nominal_speed=jnp.copy(humans.U), human_repulsion_gain=human_repulsion_gain, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, num_humans=num_humans, num_obstacles = num_obstacles, use_GPU=use_GPU)
 
 
 plot_num_samples = 4
@@ -156,7 +170,7 @@ with writer.saving(fig, movie_name, 100):
             # human_cov = jnp.diag(human_cov).reshape(-1,1)
             humans.controls = jnp.zeros((2,num_humans))
             for j in range(num_humans):
-                u_mu, u_cov = MPPI_FORESEE.multi_human_dynamics_actual( humans.X[:,[j]], humans.X[:,MPPI_FORESEE.hindex_list[j,:]], robot.X )
+                u_mu, u_cov = MPPI_FORESEE.multi_human_dynamics_actual( humans.X[:,[j]], humans.X[:,MPPI_FORESEE.hindex_list[j,:]], robot.X, humans.U[:,[j]], obstaclesX )
                 humans.controls = humans.controls.at[:,j].set(u_mu[:,0])
 
             humans.step_using_controls(dt)
@@ -166,7 +180,7 @@ with writer.saving(fig, movie_name, 100):
             human_mus = jnp.copy(humans.X)
 
         t0 = time.time()
-        robot_sampled_states, robot_chosen_states, robot_action, human_mus_traj, human_covs_traj = mppi.compute_rollout_costs(robot.X, robot_goal, human_mus, human_covs)
+        robot_sampled_states, robot_chosen_states, robot_action, human_mus_traj, human_covs_traj = mppi.compute_rollout_costs(robot.X, robot_goal, human_mus, human_covs, jnp.copy(humans.U), obstaclesX)
         print(f"time: {time.time()-t0}")
 
         for i in range(plot_num_samples):
