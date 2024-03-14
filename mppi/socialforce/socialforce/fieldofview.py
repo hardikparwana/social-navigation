@@ -13,7 +13,8 @@ class FieldOfView(object):
         self.cosphi = np.cos(twophi / 2.0 / 180.0 * np.pi)
         self.out_of_view_factor = out_of_view_factor
 
-    def __call__(self, e, f):
+    @staticmethod
+    def __call__(e, f):
         """Weighting factor for field of view.
 
         e is rank 2 and normalized in the last index.

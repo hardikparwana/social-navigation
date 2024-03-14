@@ -13,7 +13,6 @@ from . import stateutils
 
 MAX_SPEED_MULTIPLIER = 1.3  # with respect to initial speed
 
-
 class Simulator(object):
     """Simulate social force model.
 

@@ -35,7 +35,7 @@ kx = 4.0
 sensing_radius = 2
 factor = 2.0 # no of standard deviations
 choice = 0
-samples = 200 #100
+samples = 500 #100
 horizon = 40 #80 #50 #100 #50
 human_ci_alpha = 0.05 #0.005
 
@@ -61,9 +61,8 @@ plt.legend(loc='upper right')
 
 # Initialize robot
 # robot = single_integrator( ax, pos=np.array([5.0,-1.0]), dt=dt )
-# robot = single_integrator( ax, pos=np.array([2.0,1.3]), dt=dt )
-robot = single_integrator( ax, pos=np.array([2.7,1.3]), dt=dt )
-# robot = unicycle( ax, pos=np.array([2.0,1.3, -np.pi/2]), dt=dt )
+robot = single_integrator( ax, pos=np.array([2.0,1.3]), dt=dt )
+robot = unicycle( ax, pos=np.array([2.0,1.3, -np.pi/2]), dt=dt )
 robot_goal = np.array([-3.0, -2.0]).reshape(-1,1)
 ax.scatter(robot_goal[0,0], robot_goal[1,0], c='g', s=70)
 
@@ -75,6 +74,12 @@ ax.scatter(robot_goal[0,0], robot_goal[1,0], c='g', s=70)
 obstacles = []
 obstacles.append(circle(ax, pos=np.array([1.5, 1.0]), radius=1.0))
 obstacles.append(circle(ax, pos=np.array([1.5, -3.5]), radius=1.0))
+
+# get points on the circle
+obstacle_points = []
+
+
+
 # obstacles.append( rectangle( ax, pos = np.array([0.5,1.0]), width = 2.5 ) )        
 # obstacles.append( rectangle( ax, pos = np.array([-0.75,-4.5]), width = 6.0 ) )
 # obstacles.append( rectangle( ax, pos = np.array([-1.28,3.3]), height = 4.0 ) )
@@ -119,9 +124,6 @@ humans.U = np.tile( human_nominal_speed, (1,num_humans) )
 # human_nominal_speed = jnp.copy(humans.U)
 
 
-# main theme: if u know that humans are reactuve, then much better performance
-# if wrong about the assumption, then still satisfying the risk
-
 humans.render_plot(humans.X)
 
 human_mus = humans.X
@@ -131,9 +133,8 @@ control_init_ratio = (robot_goal[1,0]-robot.X[1,0])/(robot_goal[0,0]-robot.X[0,0
 
 #generate initial guess
 u_guess = -1.0 * jnp.ones((horizon, 2))
-
-robot_x = jnp.copy(robot.X)
-# u_guess = jnp.zeros((horizon, 2))
+u_guess = jnp.zeros((horizon, 2))
+# robot_x = jnp.copy(robot.X)
 # for i in range(horizon):
 #     u_robot = jnp.clip( kx * ( robot_goal - robot_x ), -control_bound, control_bound)
 #     u_guess = u_guess.at[i,:].set(u_robot[:,0])
@@ -185,7 +186,7 @@ with writer.saving(fig, movie_name, 100):
             human_mus = jnp.copy(humans.X)
 
         t0 = time.time()
-        robot_sampled_states, robot_chosen_states, robot_action, human_mus_traj, human_covs_traj = mppi.compute_rollout_costs(robot.X, robot_goal, human_mus, human_covs, jnp.copy(humans.U), obstaclesX, aware=True)
+        robot_sampled_states, robot_chosen_states, robot_action, human_mus_traj, human_covs_traj = mppi.compute_rollout_costs(robot.X, robot_goal, human_mus, human_covs, jnp.copy(humans.U), obstaclesX)
         print(f"time: {time.time()-t0}")
 
         for i in range(plot_num_samples):
@@ -194,16 +195,13 @@ with writer.saving(fig, movie_name, 100):
 
             # Human Prediction
             for j in range(num_humans):
-                # print(f"{i*plot_num_samples+j}")
-                # index = i*plot_num_samples+j
-                index = i*num_humans+j
-                human_sample_cov_plot[index].remove()
+                human_sample_cov_plot[i*plot_num_samples+j].remove()
                 if 0: #i==0:
-                    human_sample_cov_plot[index] = plt.fill_between( human_mus_traj[2*i,j,:], human_mus_traj[2*i+1,j,:]-factor*np.sqrt(human_covs_traj[2*i+1,j,:]), human_mus_traj[2*i+1,j,:]+factor*np.sqrt(human_covs_traj[2*i+1,j,:]), facecolor='r', alpha=human_ci_alpha, label='State Prediction Uncertainty' )
+                    human_sample_cov_plot[i*plot_num_samples+j] = plt.fill_between( human_mus_traj[2*i,j,:], human_mus_traj[2*i+1,j,:]-factor*np.sqrt(human_covs_traj[2*i+1,j,:]), human_mus_traj[2*i+1,j,:]+factor*np.sqrt(human_covs_traj[2*i+1,j,:]), facecolor='r', alpha=human_ci_alpha, label='State Prediction Uncertainty' )
                 else:
-                    human_sample_cov_plot[index] = plt.fill_between( human_mus_traj[2*i,j,:], human_mus_traj[2*i+1,j,:]-factor*np.sqrt(human_covs_traj[2*i+1,j,:]), human_mus_traj[2*i+1,j,:]+factor*np.sqrt(human_covs_traj[2*i+1,j,:]), facecolor='r', alpha=human_ci_alpha )
-                human_sample_plot[index][0].set_xdata( human_mus_traj[2*i,j,:] )
-                human_sample_plot[index][0].set_ydata( human_mus_traj[2*i+1,j,:] )
+                    human_sample_cov_plot[i*plot_num_samples+j] = plt.fill_between( human_mus_traj[2*i,j,:], human_mus_traj[2*i+1,j,:]-factor*np.sqrt(human_covs_traj[2*i+1,j,:]), human_mus_traj[2*i+1,j,:]+factor*np.sqrt(human_covs_traj[2*i+1,j,:]), facecolor='r', alpha=human_ci_alpha )
+                human_sample_plot[i*plot_num_samples+j][0].set_xdata( human_mus_traj[2*i,j,:] )
+                human_sample_plot[i*plot_num_samples+j][0].set_ydata( human_mus_traj[2*i+1,j,:] )
 
         sample_plot[-1][0].set_xdata( robot_chosen_states[0, :] )
         sample_plot[-1][0].set_ydata( robot_chosen_states[1, :] )

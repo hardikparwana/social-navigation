@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from obstacles import rectangle, circle
 from matplotlib.animation import FFMpegWriter
-import casadi as cd
+# import casadi as cd
 import time
 
 class crowd:
@@ -46,16 +46,16 @@ class crowd:
         else:
             self.body = self.ax.scatter(self.X[0,0: self.num_people], self.X[1,0: self.num_people],c='r',alpha=0.5,s=50)#50
             
-        self.distance_to_polytope = cd.Opti()
-        self.A = self.distance_to_polytope.parameter(4,2)
-        self.b = self.distance_to_polytope.parameter(4,1)
-        self.y = self.distance_to_polytope.variable(2,1)
-        self.curr_x = self.distance_to_polytope.parameter(2,1)
-        dist = self.y - self.curr_x
-        self.distance_to_polytope.minimize( cd.mtimes(dist.T, dist) )
-        self.distance_to_polytope.subject_to( cd.mtimes( self.A, self.y ) <= self.b )
-        option = {"verbose": False, "ipopt.print_level": 0, "print_time": 0}
-        self.distance_to_polytope.solver("ipopt", option)
+        # self.distance_to_polytope = cd.Opti()
+        # self.A = self.distance_to_polytope.parameter(4,2)
+        # self.b = self.distance_to_polytope.parameter(4,1)
+        # self.y = self.distance_to_polytope.variable(2,1)
+        # self.curr_x = self.distance_to_polytope.parameter(2,1)
+        # dist = self.y - self.curr_x
+        # self.distance_to_polytope.minimize( cd.mtimes(dist.T, dist) )
+        # self.distance_to_polytope.subject_to( cd.mtimes( self.A, self.y ) <= self.b )
+        # option = {"verbose": False, "ipopt.print_level": 0, "print_time": 0}
+        # self.distance_to_polytope.solver("ipopt", option)
         
         
         
@@ -119,40 +119,40 @@ class crowd:
         # self.body = self.ax.scatter(current_pos[0,:], current_pos[1,:],c=(1.0-alphas),alpha=0.5,s=50, cmap='RdYlGn')#50
         self.body = self.ax.scatter(poses[0,:], poses[1,:],c=c,alpha=0.5,s=50, cmap='RdYlGn')#50
             
-    def plan_paths(self, obstacles):
-        # Use MPC to plan paths for all humans in centralized manner
-        opti = cd.Opti()
+    # def plan_paths(self, obstacles):
+    #     # Use MPC to plan paths for all humans in centralized manner
+    #     opti = cd.Opti()
         
-        X = opti.variable(2,self.num_people*(self.horizon+1))
-        U = opti.variable(2,self.num_people*self.horizon)
+    #     X = opti.variable(2,self.num_people*(self.horizon+1))
+    #     U = opti.variable(2,self.num_people*self.horizon)
         
-        # Initial state
-        initial_state_error = X[:,0:self.num_people] -  self.X0
+    #     # Initial state
+    #     initial_state_error = X[:,0:self.num_people] -  self.X0
         
-        for i in range(self.horizon):
+    #     for i in range(self.horizon):
             
-            # Dynamics
-            opti.subject_to( X[:,(i+1)*self.num_people:(i+2)*self.num_people] == X[:,i*self.num_people:(i+1)*self.num_people] + U[:,i*self.num_people:(i+1)*self.num_people]*self.dt )
+    #         # Dynamics
+    #         opti.subject_to( X[:,(i+1)*self.num_people:(i+2)*self.num_people] == X[:,i*self.num_people:(i+1)*self.num_people] + U[:,i*self.num_people:(i+1)*self.num_people]*self.dt )
             
-            for j in range(self.num_people):
-                # Input constraints
-                control_input = U[:,i*self.num_people+j]
-                opti.subject_to( cd.mtimes( control_input.T, control_input ) <= 2 )
+    #         for j in range(self.num_people):
+    #             # Input constraints
+    #             control_input = U[:,i*self.num_people+j]
+    #             opti.subject_to( cd.mtimes( control_input.T, control_input ) <= 2 )
                 
-                # Collision avoidance with other people
-                for k in range(j+1,self.num_people):
-                    dist = X[:,i*self.num_people+j] - X[:,i*self.num_people+k]
-                    opti.subject_to( cd.mtimes(dist.T, dist) >= 0.3 )
+    #             # Collision avoidance with other people
+    #             for k in range(j+1,self.num_people):
+    #                 dist = X[:,i*self.num_people+j] - X[:,i*self.num_people+k]
+    #                 opti.subject_to( cd.mtimes(dist.T, dist) >= 0.3 )
                     
-        # Goal location
-        final_state_error = X[:,(self.horizon)*self.num_people:(self.horizon+1)*self.num_people] - self.goals
+    #     # Goal location
+    #     final_state_error = X[:,(self.horizon)*self.num_people:(self.horizon+1)*self.num_people] - self.goals
         
-        cost = 100*cd.norm_fro(initial_state_error)**2 + cd.norm_fro(final_state_error)**2
-        opti.minimize(cost)
-        option = {"verbose": True, "ipopt.print_level": 0, "print_time": 0}
-        opti.solver("ipopt", option)
-        sol = opti.solve();
-        return sol.value(X)
+    #     cost = 100*cd.norm_fro(initial_state_error)**2 + cd.norm_fro(final_state_error)**2
+    #     opti.minimize(cost)
+    #     option = {"verbose": True, "ipopt.print_level": 0, "print_time": 0}
+    #     opti.solver("ipopt", option)
+    #     sol = opti.solve();
+    #     return sol.value(X)
     
     def attractive_potential(self, x1, x2):
         k = 10

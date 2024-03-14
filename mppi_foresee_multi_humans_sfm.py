@@ -44,9 +44,6 @@ class MPPI_FORESEE():
     num_obstacles = 2
     indices = 0
     hindex_list = []
-    aware = True
-    humans_interact = True
-    obstacles_interact = True
 
     obstacle_radius = 1.0
 
@@ -57,10 +54,10 @@ class MPPI_FORESEE():
 
 
 
-    def __init__(self, horizon=10, samples = 10, input_size = 2, dt=0.05, sensing_radius=2, human_noise_cov=0.01, std_factor=1.96, control_bound=7, control_init_ratio=1, u_guess=None, use_GPU=True, human_nominal_speed = jnp.array([-3.0,0]).reshape(-1,1), human_repulsion_gain = 2.0, costs_lambda = 300, cost_goal_coeff = 1.0, cost_safety_coeff = 10.0, num_humans = 5, num_obstacles = 2, aware=True, humans_interact=True, obstacles_interact=True):
+    def __init__(self, horizon=10, samples = 10, input_size = 2, dt=0.05, sensing_radius=2, human_noise_cov=0.01, std_factor=1.96, control_bound=7, control_init_ratio=1, u_guess=None, use_GPU=True, human_nominal_speed = jnp.array([-3.0,0]).reshape(-1,1), human_repulsion_gain = 2.0, costs_lambda = 300, cost_goal_coeff = 1.0, cost_safety_coeff = 10.0, num_humans = 5, num_obstacles = 2):
         MPPI_FORESEE.key = jax.random.PRNGKey(111)
         MPPI_FORESEE.human_n = 2
-        MPPI_FORESEE.robot_n = 2 #3 #2
+        MPPI_FORESEE.robot_n = 3 #2
         MPPI_FORESEE.m = 2
         MPPI_FORESEE.horizon = horizon
         MPPI_FORESEE.samples = samples
@@ -80,9 +77,6 @@ class MPPI_FORESEE():
         MPPI_FORESEE.hindex_list = jnp.arange(1,num_humans).reshape(1,-1)
         for i in range(1,num_humans):
             MPPI_FORESEE.hindex_list = jnp.append( MPPI_FORESEE.hindex_list, jnp.delete( jnp.arange(0,num_humans), i ).reshape(1,-1), axis=0 )    
-        MPPI_FORESEE.aware = aware
-        MPPI_FORESEE.humans_interact = humans_interact
-        MPPI_FORESEE.obstacles_interact = obstacles_interact
 
         self.input_size = input_size        
         MPPI_FORESEE.control_bound = control_bound
@@ -100,7 +94,7 @@ class MPPI_FORESEE():
     # Linear dynamics for now
     @staticmethod
     def robot_dynamics_step(state, input):
-        return state + input * MPPI_FORESEE.dt
+        # return state + input * MPPI_FORESEE.dt
     
         # Unicycle
         theta = state[2,0]
@@ -118,17 +112,6 @@ class MPPI_FORESEE():
         robot_obstacle_dists = jnp.linalg.norm(robot_state[0:2] - obstaclesX, axis=0)
         # cost_total = cost_total + 1.0 * ((robot_state-goal).T @ (robot_state-goal))[0,0] + 3.0 / jnp.max(  jnp.array([mu_human_dist[0,0] - MPPI_FORESEE.std_factor * jnp.sqrt(cov_human_dist[0,0]), 0.01 ]) )
         cost = MPPI_FORESEE.cost_safety_coeff / jnp.max(  jnp.array([mu_human_dist[0,0] - MPPI_FORESEE.std_factor * jnp.sqrt(cov_human_dist[0,0]), 0.01 ]) )
-        cost = cost + MPPI_FORESEE.cost_safety_coeff / jnp.max(jnp.array([jnp.min(robot_obstacle_dists), 0.01])  )
-        return cost
-    
-    @staticmethod
-    @jit
-    def state_cost(robot_state, human_state, goal, obstaclesX):       
-        human_dist = jnp.linalg.norm(robot_state[0:2] - human_state)
-        robot_obstacle_dists = jnp.linalg.norm(robot_state[0:2] - obstaclesX, axis=0).reshape(-1,1)
-        # cost_total = cost_total + 1.0 * ((robot_state-goal).T @ (robot_state-goal))[0,0] + 3.0 / jnp.max(  jnp.array([mu_human_dist[0,0] - MPPI_FORESEE.std_factor * jnp.sqrt(cov_human_dist[0,0]), 0.01 ]) )
-        cost = MPPI_FORESEE.cost_goal_coeff * ((robot_state[0:2]-goal).T @ (robot_state[0:2]-goal))[0,0]
-        cost = cost + MPPI_FORESEE.cost_safety_coeff / jnp.max(  jnp.array([human_dist, 0.01 ]) )
         cost = cost + MPPI_FORESEE.cost_safety_coeff / jnp.max(jnp.array([jnp.min(robot_obstacle_dists), 0.01])  )
         return cost
     
@@ -161,18 +144,10 @@ class MPPI_FORESEE():
     @staticmethod
     @jit
     def true_func(u_human, mu_x, robot_x):
-
         # u_human = u_human - (robot_x - mu_x) / jnp.clip(jnp.linalg.norm( mu_x-robot_x ), 0.01, None) * ( 2.0 * jnp.tanh( 1.0 / jnp.linalg.norm( mu_x-robot_x ) ) )
         u_human = u_human - (robot_x[0:2] - mu_x) / jnp.clip(jnp.linalg.norm( mu_x-robot_x[0:2] ), 0.01, None) * ( MPPI_FORESEE.human_repulsion_gain * jnp.tanh( 1.0 / jnp.linalg.norm( mu_x-robot_x[0:2] ) ) )
         return u_human
 
-        if aware:
-            # u_human = u_human - (robot_x - mu_x) / jnp.clip(jnp.linalg.norm( mu_x-robot_x ), 0.01, None) * ( 2.0 * jnp.tanh( 1.0 / jnp.linalg.norm( mu_x-robot_x ) ) )
-            u_human = u_human - (robot_x[0:2] - mu_x) / jnp.clip(jnp.linalg.norm( mu_x-robot_x[0:2] ), 0.01, None) * ( MPPI_FORESEE.human_repulsion_gain * jnp.tanh( 1.0 / jnp.linalg.norm( mu_x-robot_x[0:2] ) ) )
-            return u_human
-        else:
-            return u_human
-        
     @staticmethod
     @jit
     def false_func(u_human, mu_x, robot_x):
@@ -187,29 +162,27 @@ class MPPI_FORESEE():
 
     @staticmethod
     @jit
-    def multi_human_dynamics(human_x, other_human_x, robot_x, human_speed, obstaclesX, aware):
+    def multi_human_dynamics(human_x, other_human_x, robot_x, human_speed, obstaclesX):
 
         # u = MPPI_FORESEE.human_nominal_speed
         u = human_speed
 
         # Human repulsive force -> based only on mean of other robot
         # maybe show that in a cooperative scenario, this works??
-        if MPPI_FORESEE.humans_interact:
-            dist_humans = jnp.linalg.norm( human_x - other_human_x, axis=0 )
-            def body(i, inputs):
-                u = inputs
-                u = lax.cond( dist_humans[i]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, other_human_x[:,[i]])
-                return u
-            u = lax.fori_loop(0, MPPI_FORESEE.num_humans-1, body, u)
+        dist_humans = jnp.linalg.norm( human_x - other_human_x, axis=0 )
+        def body(i, inputs):
+            u = inputs
+            u = lax.cond( dist_humans[i]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, other_human_x[:,[i]])
+            return u
+        u = lax.fori_loop(0, MPPI_FORESEE.num_humans, body, u)
 
         # robot repulsive force
-        u_human = lax.cond( jnp.logical_and((jnp.linalg.norm( human_x-robot_x[0:2] )<MPPI_FORESEE.sensing_radius), (aware)), MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, robot_x)
+        u_human = lax.cond( jnp.linalg.norm( human_x-robot_x[0:2] )<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, robot_x)
 
         # Obstacle repulsive force based on nearest obstacle
-        if MPPI_FORESEE.obstacles_interact:
-            dist_obstacles = jnp.linalg.norm( human_x - obstaclesX, axis=0 )
-            min_dist_obs_id = jnp.min(jnp.argmin(dist_obstacles))
-            u_human = lax.cond( dist_obstacles[min_dist_obs_id]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func_obstacle, MPPI_FORESEE.false_func, u_human, human_x, obstaclesX[:,[min_dist_obs_id]])
+        dist_obstacles = jnp.linalg.norm( human_x - obstaclesX, axis=0 )
+        min_dist_obs_id = jnp.min(jnp.argmin(dist_obstacles))
+        u_human = lax.cond( dist_obstacles[min_dist_obs_id]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func_obstacle, MPPI_FORESEE.false_func, u_human, human_x, obstaclesX[:,[min_dist_obs_id]])
 
         # Clip the control input
         u_human = jnp.clip(u_human, -4.0, 4.0)
@@ -228,30 +201,24 @@ class MPPI_FORESEE():
 
         # Human repulsive force -> based only on mean of other robot
         # maybe show that in a cooperative scenario, this works??
-        if MPPI_FORESEE.humans_interact:
-            dist_humans = jnp.linalg.norm( human_x - other_human_x, axis=0 )
-            def body(i, inputs):
-                u, other_human_x = inputs
-                u = lax.cond( dist_humans[i]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, other_human_x[:,[i]])
-                return u, other_human_x
-            u, _ = lax.fori_loop(0, MPPI_FORESEE.num_humans-1, body, (u, other_human_x))
+        dist_humans = jnp.linalg.norm( human_x - other_human_x, axis=0 )
+        def body(i, inputs):
+            u, other_human_x = inputs
+            u = lax.cond( dist_humans[i]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, other_human_x[:,[i]])
+            return u, other_human_x
+        u, _ = lax.fori_loop(0, MPPI_FORESEE.num_humans, body, (u, other_human_x))
 
         # robot repulsive force
         u_human = lax.cond( jnp.linalg.norm( human_x-robot_x[0:2] )<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, robot_x)
 
         # Obstacle repulsive force based on nearest obstacle
-        if MPPI_FORESEE.obstacles_interact:
-            dist_obstacles = jnp.linalg.norm( human_x - obstaclesX, axis=0 )
-            min_dist_obs_id = jnp.min(jnp.argmin(dist_obstacles))
-            u_human = lax.cond( dist_obstacles[min_dist_obs_id]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func_obstacle, MPPI_FORESEE.false_func, u_human, human_x, obstaclesX[:,[min_dist_obs_id]])
+        dist_obstacles = jnp.linalg.norm( human_x - obstaclesX, axis=0 )
+        min_dist_obs_id = jnp.min(jnp.argmin(dist_obstacles))
+        u_human = lax.cond( dist_obstacles[min_dist_obs_id]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func_obstacle, MPPI_FORESEE.false_func, u_human, human_x, obstaclesX[:,[min_dist_obs_id]])
 
         u_human = jnp.clip(u_human, -4.0, 4.0)
-        # return u_human, jnp.zeros((2,2))
-    
-        # Propagate dynamics for human
-        mu, cov = u_human, MPPI_FORESEE.human_noise_cov * jnp.ones((MPPI_FORESEE.human_n,1))
-        return mu, cov
-        
+
+        return u_human, jnp.zeros((2,2))
         mu, cov = human_x + u_human * MPPI_FORESEE.dt, MPPI_FORESEE.human_noise_cov * jnp.eye(MPPI_FORESEE.human_n) * MPPI_FORESEE.dt**2
 
         return mu, cov
@@ -259,7 +226,7 @@ class MPPI_FORESEE():
 
     @staticmethod
     @jit
-    def multi_human_sigma_point_expand(sigma_points, weights, other_human_mus, robot_state, human_speed, obstaclesX, aware):
+    def multi_human_sigma_point_expand(sigma_points, weights, other_human_mus, robot_state, human_speed, obstaclesX):
 
         new_points = jnp.zeros((MPPI_FORESEE.human_n*(2*MPPI_FORESEE.human_n+1), 2*MPPI_FORESEE.human_n+1 ))
         new_weights = jnp.zeros((2*MPPI_FORESEE.human_n+1, 2*MPPI_FORESEE.human_n+1))
@@ -267,7 +234,7 @@ class MPPI_FORESEE():
         # loop over sigma points
         def body(i, inputs):
             new_points, new_weights = inputs
-            mu, cov = MPPI_FORESEE.multi_human_dynamics( sigma_points[:,[i]], other_human_mus, robot_state, human_speed, obstaclesX, aware )
+            mu, cov = MPPI_FORESEE.multi_human_dynamics( sigma_points[:,[i]], other_human_mus, robot_state, human_speed, obstaclesX )
             root_term = get_ut_cov_root_diagonal(cov)           
             temp_points, temp_weights = generate_sigma_points_gaussian( mu, root_term, jnp.zeros((MPPI_FORESEE.human_n, 1)), 1.0 )
             new_points = new_points.at[:,i].set( temp_points.reshape(-1,1, order='F')[:,0] )
@@ -278,7 +245,7 @@ class MPPI_FORESEE():
 
     @staticmethod
     @jit
-    def single_sample_rollout(goal, robot_states_init, perturbed_control, human_sigma_points_init, human_sigma_weights_init, human_mus_init, human_covs_init, human_speed, obstaclesX, aware):
+    def single_sample_rollout(goal, robot_states_init, perturbed_control, human_sigma_points_init, human_sigma_weights_init, human_mus_init, human_covs_init, human_speed, obstaclesX):
         
         # Initialize variables
         robot_states = jnp.zeros( ( MPPI_FORESEE.robot_n, MPPI_FORESEE.horizon) )
@@ -303,7 +270,7 @@ class MPPI_FORESEE():
             cost_sample = cost_sample + MPPI_FORESEE.single_sample_state_cost( robot_state, human_sigma_state[:,:,j], human_sigma_weight[:,[j]].T,  goal, obstaclesX) / MPPI_FORESEE.num_humans
 
             # Expand this human's state
-            expanded_states, expanded_weights = MPPI_FORESEE.multi_human_sigma_point_expand( human_sigma_state[:,:,j], human_sigma_weight[:,[j]].T, human_mus[:, MPPI_FORESEE.hindex_list[j,:], i], robot_state, human_speed[:,[j]], obstaclesX, aware )
+            expanded_states, expanded_weights = MPPI_FORESEE.multi_human_sigma_point_expand( human_sigma_state[:,:,j], human_sigma_weight[:,[j]].T, human_mus[:, MPPI_FORESEE.hindex_list[j,:], i], robot_state, human_speed[:,[j]], obstaclesX )
             mu_temp, cov_temp, compressed_states, compressed_weights = sigma_point_compress( expanded_states, expanded_weights )
             human_sigma_points = human_sigma_points.at[:, j, i+1].set( compressed_states.T.reshape(-1,1)[:,0] )
             human_sigma_weights = human_sigma_weights.at[:, j, i+1].set( compressed_weights.T[:,0] )
@@ -383,7 +350,7 @@ class MPPI_FORESEE():
 
     @staticmethod
     @jit
-    def rollout_states_foresee(subkey, robot_init_state, perturbed_control, previous_control, goal, human_init_state_mu, human_init_state_cov, human_speed, obstaclesX, aware):
+    def rollout_states_foresee(subkey, robot_init_state, perturbed_control, previous_control, goal, human_init_state_mu, human_init_state_cov, human_speed, obstaclesX):
 
         # Expansion - Compression - Projection. # show something in theory.. for arbitarry dynamics! assume swicthing happens only at discrete time intervals
         # key, subkey = jax.random.split(MPPI_FORESEE.key)
@@ -427,7 +394,7 @@ class MPPI_FORESEE():
         if MPPI_FORESEE.use_gpu:
             @jit
             def body_sample(robot_states_init, perturbed_control_sample, human_sigma_points_init, human_sigma_weights_init, human_mus_init, human_covs_init): #, human_speed, obstaclesX):
-                cost_sample, robot_states_sample, human_sigma_points_sample, human_sigma_weights_sample, human_mus_sample, human_covs_sample = MPPI_FORESEE.single_sample_rollout(goal, robot_states_init, perturbed_control_sample.T, human_sigma_points_init, human_sigma_weights_init, human_mus_init, human_covs_init, human_speed, obstaclesX, aware )
+                cost_sample, robot_states_sample, human_sigma_points_sample, human_sigma_weights_sample, human_mus_sample, human_covs_sample = MPPI_FORESEE.single_sample_rollout(goal, robot_states_init, perturbed_control_sample.T, human_sigma_points_init, human_sigma_weights_init, human_mus_init, human_covs_init, human_speed, obstaclesX )
                 return cost_sample, robot_states_sample, human_sigma_points_sample, human_sigma_weights_sample, human_mus_sample, human_covs_sample
             batched_body_sample = jax.vmap( body_sample, in_axes=0 )
             cost_total, robot_states, human_sigma_points, human_sigma_weights, human_mus, human_covs = batched_body_sample( robot_states[:,:,0], perturbed_control, human_sigma_points[:,:,:,0], human_sigma_weights[:,:,:,0], human_mus[:,:,:,0], human_covs[:,:,:,0])#, human_speed, obstaclesX  )
@@ -437,7 +404,7 @@ class MPPI_FORESEE():
                 robot_states, human_sigma_points, human_sigma_weights, cost_total, human_mus, human_covs, human_speed, obstaclesX = inputs     
 
                 # Get cost
-                cost_sample, robot_states_sample, human_sigma_points_sample, human_sigma_weights_sample, human_mus_sample, human_covs_sample = MPPI_FORESEE.single_sample_rollout(goal, robot_states[i,:,0], perturbed_control[i,:,:].T, human_sigma_points[i,:,:,0], human_sigma_weights[i,:,:,0], human_mus[i,:,:,0], human_covs[i,:,:,0], human_speed, obstaclesX, aware )
+                cost_sample, robot_states_sample, human_sigma_points_sample, human_sigma_weights_sample, human_mus_sample, human_covs_sample = MPPI_FORESEE.single_sample_rollout(goal, robot_states[i,:,0], perturbed_control[i,:,:].T, human_sigma_points[i,:,:,0], human_sigma_weights[i,:,:,0], human_mus[i,:,:,0], human_covs[i,:,:,0], human_speed, obstaclesX )
                 cost_total = cost_total.at[i].set( cost_sample )
                 robot_states = robot_states.at[i,:,:].set( robot_states_sample )
                 human_sigma_points= human_sigma_points.at[i,:,:].set( human_sigma_points_sample )
@@ -446,6 +413,7 @@ class MPPI_FORESEE():
                 human_covs = human_covs.at[i,:,:].set( human_covs_sample )
                 return robot_states, human_sigma_points, human_sigma_weights, cost_total, human_mus, human_covs, human_speed, obstaclesX  
             robot_states, human_sigma_points, human_sigma_weights, cost_total, human_mus, human_covs, human_speed, obstaclesX = lax.fori_loop( 0, MPPI_FORESEE.samples, body_samples, (robot_states, human_sigma_points, human_sigma_weights, cost_total, human_mus, human_covs, human_speed, obstaclesX) )
+
 
             # for i in range(MPPI_FORESEE.samples):
             #     # Get cost
@@ -473,7 +441,7 @@ class MPPI_FORESEE():
         perturbation = perturbed_control - U
         return U, perturbation, perturbed_control
     
-    def compute_rollout_costs( self, init_state, goal, human_states_mu, human_states_cov, human_speed, obstaclesX, aware ):
+    def compute_rollout_costs( self, init_state, goal, human_states_mu, human_states_cov, human_speed, obstaclesX ):
 
         self.key, subkey = jax.random.split(self.key)
         self.U, perturbation, perturbed_control = MPPI_FORESEE.compute_perturbed_control(subkey, self.control_mu, self.control_cov, self.control_bound, self.U)
@@ -487,10 +455,10 @@ class MPPI_FORESEE():
         # perturbation = perturbed_control - self.U
 
         t0 = time.time()
-        sampled_robot_states, costs, human_sigma_points, human_sigma_weights, human_mus, human_covs = MPPI_FORESEE.rollout_states_foresee(subkey, init_state, perturbed_control, self.U, goal, human_states_mu, human_states_cov, human_speed, obstaclesX, aware)
+        sampled_robot_states, costs, human_sigma_points, human_sigma_weights, human_mus, human_covs = MPPI_FORESEE.rollout_states_foresee(subkey, init_state, perturbed_control, self.U, goal, human_states_mu, human_states_cov, human_speed, obstaclesX)
         # sampled_robot_states, costs, human_sigma_points, human_sigma_weights, human_mus, human_covs, perturbation = MPPI_FORESEE.rollout_states_foresee(subkey, init_state, self.U, goal, human_states_mu, human_states_cov)
         tf = time.time()
-        # print(f"costs: min: {jnp.min(costs)}, max: {jnp.max(costs)}")
+        print(f"costs: min: {jnp.min(costs)}, max: {jnp.max(costs)}")
         self.U = MPPI_FORESEE.weighted_sum( self.U, perturbation, costs) #weights )
 
         states_final = MPPI_FORESEE.rollout_control(init_state, self.U)              

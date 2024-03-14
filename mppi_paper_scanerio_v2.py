@@ -23,7 +23,7 @@ kx = 4.0
 sensing_radius = 2
 factor = 2.0 # no of standard deviations
 choice = 0
-samples = 5000 #100
+samples = 2000 #100
 horizon = 80 #50 #100 #50
 human_ci_alpha = 0.005
 
