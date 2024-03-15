@@ -26,10 +26,10 @@ import pdb
 # Simulatiojn Parameters
 num_humans = 10
 d_human = 0.4
-use_GPU = True #False
+use_GPU = False #True #False
 visualize = False #False
-num_iters = 20
-name = "media/case1"
+num_iters = 5 #200
+name = "media/test"
 
 # Simulation parameters
 human_noise_cov = 4.0 # 4.0 #4.0 #0.5
@@ -42,7 +42,7 @@ kx = 4.0
 sensing_radius = 2
 factor = 2.0 # no of standard deviations
 choice = 0
-samples = 1000# 1000 #200 #100
+samples = 200 #5000# 1000 #200 #100
 horizon = 40 #80 #50 #100 #50
 human_ci_alpha = 0.05 #0.005
 
@@ -341,8 +341,8 @@ for j in range(num_humans):
     ax3u.plot( human_pos_aware[0][2*j,:], human_pos_aware[0][2*j+1,:], 'r' )
     ax3u.fill_between( human_pos_unaware[0][2*j,:], human_pos_unaware[0][2*j+1,:]-1.96*human_pos_unaware[1][2*j+1,:], human_pos_unaware[0][2*j+1,:]+1.96*human_pos_unaware[1][2*j+1,:], facecolor='r', alpha=0.2 )
 ax3u.scatter(robot_goal[0,0], robot_goal[1,0], edgecolors='g', s=70, facecolors='none')
-fig3u.savefig(name+"_aware.png")
-fig3u.savefig(name+"_aware.eps")
+fig3u.savefig(name+"_unaware.png")
+fig3u.savefig(name+"_unaware.eps")
 
 
 def plot_costs(ax, costs_means, costs_stds, mu_color='g', std_color='y', label='Dynamics Aware'):
