@@ -44,7 +44,7 @@ class MPPI_FORESEE():
     num_obstacles = 2
     indices = 0
     hindex_list = []
-    aware = [True, True]
+    aware = True
     humans_interact = True
     obstacles_interact = True
 
@@ -57,7 +57,7 @@ class MPPI_FORESEE():
 
 
 
-    def __init__(self, horizon=10, samples = 10, input_size = 2, dt=0.05, sensing_radius=2, human_noise_cov=0.01, std_factor=1.96, control_bound=7, control_init_ratio=1, u_guess=None, use_GPU=True, human_nominal_speed = jnp.array([-3.0,0]).reshape(-1,1), human_repulsion_gain = 2.0, costs_lambda = 300, cost_goal_coeff = 1.0, cost_safety_coeff = 10.0, num_humans = 5, num_obstacles = 2, aware=[True, True], humans_interact=True, obstacles_interact=True):
+    def __init__(self, horizon=10, samples = 10, input_size = 2, dt=0.05, sensing_radius=2, human_noise_cov=0.01, std_factor=1.96, control_bound=7, control_init_ratio=1, u_guess=None, use_GPU=True, human_nominal_speed = jnp.array([-3.0,0]).reshape(-1,1), human_repulsion_gain = 2.0, costs_lambda = 300, cost_goal_coeff = 1.0, cost_safety_coeff = 10.0, num_humans = 5, num_obstacles = 2, aware=True, humans_interact=True, obstacles_interact=True):
         MPPI_FORESEE.key = jax.random.PRNGKey(111)
         MPPI_FORESEE.human_n = 2
         MPPI_FORESEE.robot_n = 2 #3 #2
@@ -193,40 +193,6 @@ class MPPI_FORESEE():
 
     @staticmethod
     @jit
-    def multi_human_dynamics(human_x, other_human_x, robot_x, human_speed, obstaclesX, aware, mu_state):
-
-        # u = MPPI_FORESEE.human_nominal_speed
-        u = human_speed
-
-        # Human repulsive force -> based only on mean of other robot
-        # maybe show that in a cooperative scenario, this works??
-        if MPPI_FORESEE.humans_interact:
-            dist_humans = jnp.linalg.norm( human_x - other_human_x, axis=0 )
-            def body(i, inputs):
-                u = inputs
-                u = lax.cond( dist_humans[i]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, other_human_x[:,[i]])
-                return u
-            u = lax.fori_loop(0, MPPI_FORESEE.num_humans-1, body, u)
-
-        # robot repulsive force
-        u_human = lax.cond( jnp.logical_and((jnp.linalg.norm( human_x-robot_x[0:2] )<MPPI_FORESEE.sensing_radius), (aware[0])), MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, robot_x)
-
-        # Obstacle repulsive force based on nearest obstacle
-        if MPPI_FORESEE.obstacles_interact:
-            dist_obstacles = jnp.linalg.norm( human_x - obstaclesX, axis=0 )
-            min_dist_obs_id = jnp.min(jnp.argmin(dist_obstacles))
-            u_human = lax.cond( dist_obstacles[min_dist_obs_id]<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func_obstacle, MPPI_FORESEE.false_func, u_human, human_x, obstaclesX[:,[min_dist_obs_id]])
-
-        # Clip the control input
-        u_human = jnp.clip(u_human, -4.0, 4.0)
-
-        # Propagate dynamics for human
-        mu, cov = human_x + u_human * MPPI_FORESEE.dt, MPPI_FORESEE.human_noise_cov * jnp.eye(MPPI_FORESEE.human_n) * MPPI_FORESEE.dt**2
-
-        return mu, cov
-    
-    @staticmethod
-    @jit
     def multi_human_dynamics_mean(human_x, other_human_x, robot_x, human_speed, obstaclesX, aware, mu_state):
 
         # u = MPPI_FORESEE.human_nominal_speed
@@ -243,7 +209,7 @@ class MPPI_FORESEE():
             u = lax.fori_loop(0, MPPI_FORESEE.num_humans-1, body, u)
 
         # robot repulsive force
-        u_human = lax.cond( jnp.logical_and((jnp.linalg.norm( mu_state-robot_x[0:2] )<MPPI_FORESEE.sensing_radius), (aware[0])), MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, mu_state, robot_x)
+        u_human = lax.cond( jnp.logical_and((jnp.linalg.norm( mu_state-robot_x[0:2] )<MPPI_FORESEE.sensing_radius), (aware)), MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, mu_state, robot_x)
 
         # Obstacle repulsive force based on nearest obstacle
         if MPPI_FORESEE.obstacles_interact:
@@ -261,7 +227,7 @@ class MPPI_FORESEE():
     
     @staticmethod
     @jit
-    def multi_human_dynamics_actual(human_x, other_human_x, robot_x, human_speed, obstaclesX, aware_actual=True):
+    def multi_human_dynamics_actual(human_x, other_human_x, robot_x, human_speed, obstaclesX):
 
         # u = MPPI_FORESEE.human_nominal_speed
         u = human_speed
@@ -277,7 +243,7 @@ class MPPI_FORESEE():
             u, _ = lax.fori_loop(0, MPPI_FORESEE.num_humans-1, body, (u, other_human_x))
 
         # robot repulsive force
-        u_human = lax.cond( jnp.logical_and( (jnp.linalg.norm( human_x-robot_x[0:2] )<MPPI_FORESEE.sensing_radius), (aware_actual)), MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, robot_x)
+        u_human = lax.cond( jnp.linalg.norm( human_x-robot_x[0:2] )<MPPI_FORESEE.sensing_radius, MPPI_FORESEE.true_func, MPPI_FORESEE.false_func, u, human_x, robot_x)
 
         # Obstacle repulsive force based on nearest obstacle
         if MPPI_FORESEE.obstacles_interact:
@@ -308,8 +274,7 @@ class MPPI_FORESEE():
         # loop over sigma points
         def body(i, inputs):
             new_points, new_weights = inputs
-            mu, cov = lax.cond( aware[1], MPPI_FORESEE.multi_human_dynamics, MPPI_FORESEE.multi_human_dynamics_mean, sigma_points[:,[i]], other_human_mus, robot_state, human_speed, obstaclesX, aware, mu_state )
-            # mu, cov = MPPI_FORESEE.multi_human_dynamics( sigma_points[:,[i]], other_human_mus, robot_state, human_speed, obstaclesX, aware, mu_state )
+            mu, cov = MPPI_FORESEE.multi_human_dynamics( sigma_points[:,[i]], other_human_mus, robot_state, human_speed, obstaclesX, aware, mu_state )
             root_term = get_ut_cov_root_diagonal(cov)           
             temp_points, temp_weights = generate_sigma_points_gaussian( mu, root_term, jnp.zeros((MPPI_FORESEE.human_n, 1)), 1.0 )
             new_points = new_points.at[:,i].set( temp_points.reshape(-1,1, order='F')[:,0] )

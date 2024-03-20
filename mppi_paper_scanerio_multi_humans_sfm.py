@@ -6,14 +6,12 @@ from robot_models.single_integrator import single_integrator
 from robot_models.unicycle import unicycle
 from robot_models.humans import humans
 from utils import *
-from mppi_foresee_multi_humans import *
-
+from mppi_foresee_multi_humans_sfm import *
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter
 from crowd import crowd
-from humansocialforce import *
 from obstacles import rectangle, circle
 
 from jax import random
@@ -26,7 +24,7 @@ from jax import random
 # Simulatiojn Parameters
 num_humans = 10
 d_human = 0.4
-use_GPU = False #True #False
+use_GPU = True #True #False
 visualize = True
 
 # Simulation parameters
@@ -34,13 +32,13 @@ human_noise_cov = 4.0 # 4.0 #4.0 #0.5
 human_noise_mean = 0
 human_localization_noise = 0.05
 dt = 0.05 #0.05
-T = 50 # simulation steps
+T = 50 #50 # simulation steps
 control_bound = 4 #7 #4
 kx = 4.0
 sensing_radius = 2
 factor = 2.0 # no of standard deviations
 choice = 0
-samples = 1000 #200 #100
+samples = 20# 1000 #200 #100
 horizon = 40 #80 #50 #100 #50
 human_ci_alpha = 0.05 #0.005
 
@@ -80,7 +78,8 @@ def run(aware=True):
         print(f"Iter : {iter}")
         cost_list = [0]
         # Initialize robot
-        robot = single_integrator( ax, pos=np.array([2.7,1.3]), dt=dt )
+        # robot = single_integrator( ax, pos=np.array([2.7,1.3]), dt=dt )
+        robot = single_integrator( ax, pos=np.array([1.0,-1.3]), dt=dt )
         robot_goal = np.array([-3.0, -2.0]).reshape(-1,1)
         ax.scatter(robot_goal[0,0], robot_goal[1,0], c='g', s=70)
 
@@ -132,6 +131,9 @@ def run(aware=True):
 
 
         humans.U = np.tile( human_nominal_speed, (1,num_humans) )
+
+        human_social_state = jnp.concatenate( (humans.X.T, humans.U.T, humans.goals.T), axis=1 )
+
         # human_nominal_speed = jnp.copy(humans.U)
 
 
@@ -140,8 +142,8 @@ def run(aware=True):
 
         humans.render_plot(humans.X)
 
-        human_mus = humans.X
-        human_covs = human_localization_noise * jnp.ones((2,num_humans))
+        human_mus = human_social_state[:,0:4].T
+        human_covs = human_localization_noise * jnp.ones((4,num_humans))
 
         control_init_ratio = (robot_goal[1,0]-robot.X[1,0])/(robot_goal[0,0]-robot.X[0,0])
 
@@ -173,7 +175,7 @@ def run(aware=True):
                     human_sample_cov_plot.append( plt.fill_between( [1], [0.5], [0.5], facecolor='r', alpha=human_ci_alpha ) )
 
         # Human plot
-        robot_action = 0
+        robot_action = jnp.zeros((2,1))
 
         # metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
         # writer = FFMpegWriter(fps=7, metadata=metadata)
@@ -183,48 +185,59 @@ def run(aware=True):
             for t in range(T):
 
                 if t>0:
-                    robot.step( robot_action )
+                    
 
                     humans.controls = jnp.zeros((2,num_humans))
-                    for j in range(num_humans):
-                        u_mu, u_cov = MPPI_FORESEE.multi_human_dynamics_actual( humans.X[:,[j]], humans.X[:,MPPI_FORESEE.hindex_list[j,:]], robot.X, humans.U[:,[j]], obstaclesX )
+                    t0 = time.time()
+                    human_pred_mu, human_pred_cov = MPPI_FORESEE.multi_human_dynamics_sfm_actual( human_mus, humans.goals, robot.X, robot_action, obstaclesX, aware )
+                    print(f"time sfm: {time.time()-t0}")
                         # sample control input
-                        key, subkey = random.split(key)
-                        control = u_mu + random.normal(subkey, (2,1)) * jnp.sqrt(u_cov)
-                        control = jnp.clip( control, -4, 4 )
-                        humans.controls = humans.controls.at[:,j].set(control[:,0])
+                    human_social_state = human_pred_mu
+                    # for j in range(num_humans):
+                        # human_pred_mu, human_pred_cov = MPPI_FORESEE.multi_human_dynamics_sfm( humans.X[:,[j]], humans.X[:,MPPI_FORESEE.hindex_list[j,:]], humans.goal[:,[j]], humans.goal[:,MPPI_FORESEE.hindex_list[j,:]], robot.X, robot_action, obstaclesX, aware )
+                        # sample control input
+                        # human_social_state = human_pred_cov
+
+                        # key, subkey = random.split(key)
+                        # control = u_mu + random.normal(subkey, (2,1)) * jnp.sqrt(u_cov)
+                        # control = jnp.clip( control, -4, 4 )
+                        # humans.X = 
+                        # humans.controls = humans.controls.at[:,j].set(control[:,0])
                         # humans.controls = humans.controls.at[:,j].set(u_mu[:,0])
 
-                    humans.step_using_controls(dt)
-                    human_positions = np.copy(humans.X)
+                    # humans.step_using_controls(dt)
+                    humans.X = human_social_state[:,0:2].T
+                    human_positions = np.copy(humans.X)                    
                     humans.render_plot(human_positions)
 
-                    human_mus = jnp.copy(humans.X)
+                    human_mus = human_social_state[:,0:4].T
+                    robot.step( robot_action )
 
                     cost_list.append(cost_list[-1] + MPPI_FORESEE.state_cost( robot.X, humans.X, robot_goal, obstaclesX ).item())
 
-                robot_sampled_states, robot_chosen_states, robot_action, human_mus_traj, human_covs_traj = mppi.compute_rollout_costs(robot.X, robot_goal, human_mus, human_covs, jnp.copy(humans.U), obstaclesX, aware)
+
+                robot_sampled_states, robot_chosen_states, robot_action, human_mus_traj, human_covs_traj = mppi.compute_rollout_costs(robot.X, robot_goal, human_mus, human_covs, obstaclesX, aware, humans.goals)
 
                 if visualize:
-                    for i in range(plot_num_samples):
-                        sample_plot[i][0].set_xdata( robot_sampled_states[2*i, :] )
-                        sample_plot[i][0].set_ydata( robot_sampled_states[2*i+1, :] )
+                    # for i in range(plot_num_samples):
+                    #     sample_plot[i][0].set_xdata( robot_sampled_states[2*i, :] )
+                    #     sample_plot[i][0].set_ydata( robot_sampled_states[2*i+1, :] )
 
-                        # Human Prediction
-                        for j in range(num_humans):
-                            # print(f"{i*plot_num_samples+j}")
-                            # index = i*plot_num_samples+j
-                            index = i*num_humans+j
-                            human_sample_cov_plot[index].remove()
-                            if 0: #i==0:
-                                human_sample_cov_plot[index] = plt.fill_between( human_mus_traj[2*i,j,:], human_mus_traj[2*i+1,j,:]-factor*np.sqrt(human_covs_traj[2*i+1,j,:]), human_mus_traj[2*i+1,j,:]+factor*np.sqrt(human_covs_traj[2*i+1,j,:]), facecolor='r', alpha=human_ci_alpha, label='State Prediction Uncertainty' )
-                            else:
-                                human_sample_cov_plot[index] = plt.fill_between( human_mus_traj[2*i,j,:], human_mus_traj[2*i+1,j,:]-factor*np.sqrt(human_covs_traj[2*i+1,j,:]), human_mus_traj[2*i+1,j,:]+factor*np.sqrt(human_covs_traj[2*i+1,j,:]), facecolor='r', alpha=human_ci_alpha )
-                            human_sample_plot[index][0].set_xdata( human_mus_traj[2*i,j,:] )
-                            human_sample_plot[index][0].set_ydata( human_mus_traj[2*i+1,j,:] )
+                    #     # Human Prediction
+                    #     for j in range(num_humans):
+                    #         # print(f"{i*plot_num_samples+j}")
+                    #         # index = i*plot_num_samples+j
+                    #         index = i*num_humans+j
+                    #         human_sample_cov_plot[index].remove()
+                    #         if 0: #i==0:
+                    #             human_sample_cov_plot[index] = plt.fill_between( human_mus_traj[2*i,j,:], human_mus_traj[2*i+1,j,:]-factor*np.sqrt(human_covs_traj[2*i+1,j,:]), human_mus_traj[2*i+1,j,:]+factor*np.sqrt(human_covs_traj[2*i+1,j,:]), facecolor='r', alpha=human_ci_alpha, label='State Prediction Uncertainty' )
+                    #         else:
+                    #             human_sample_cov_plot[index] = plt.fill_between( human_mus_traj[2*i,j,:], human_mus_traj[2*i+1,j,:]-factor*np.sqrt(human_covs_traj[2*i+1,j,:]), human_mus_traj[2*i+1,j,:]+factor*np.sqrt(human_covs_traj[2*i+1,j,:]), facecolor='r', alpha=human_ci_alpha )
+                    #         human_sample_plot[index][0].set_xdata( human_mus_traj[2*i,j,:] )
+                    #         human_sample_plot[index][0].set_ydata( human_mus_traj[2*i+1,j,:] )
 
-                    sample_plot[-1][0].set_xdata( robot_chosen_states[0, :] )
-                    sample_plot[-1][0].set_ydata( robot_chosen_states[1, :] )
+                    # sample_plot[-1][0].set_xdata( robot_chosen_states[0, :] )
+                    # sample_plot[-1][0].set_ydata( robot_chosen_states[1, :] )
                     ax.legend(loc='lower left')
 
                     fig.canvas.draw()

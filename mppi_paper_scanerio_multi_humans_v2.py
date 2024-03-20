@@ -7,6 +7,7 @@ from robot_models.unicycle import unicycle
 from robot_models.humans import humans
 from utils import *
 from mppi_foresee_multi_humans import *
+# from mppi_foresee_multi_humans_mean import *
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -27,8 +28,8 @@ import pdb
 num_humans = 10
 d_human = 0.4
 use_GPU = False #True #False
-visualize = False #False
-num_iters = 5 #200
+visualize = True #False
+num_iters = 2 #0 #50 #5 #200
 name = "media/test"
 
 # Simulation parameters
@@ -42,12 +43,12 @@ kx = 4.0
 sensing_radius = 2
 factor = 2.0 # no of standard deviations
 choice = 0
-samples = 200 #5000# 1000 #200 #100
+samples = 1000 #5000# 1000 #200 #100
 horizon = 40 #80 #50 #100 #50
 human_ci_alpha = 0.05 #0.005
 
 # cost terms
-human_nominal_speed = jnp.array([3.0,0]).reshape(-1,1)
+human_nominal_speed = jnp.array([2.5,0]).reshape(-1,1) #jnp.array([3.0,0]).reshape(-1,1)
 human_repulsion_gain = 2.0 #2.0
 costs_lambda = 0.03 #300 #0.05 #300
 cost_goal_coeff = 0.2 #1.0
@@ -72,12 +73,13 @@ plt.legend(loc='upper right')
 
 
 robot_goal = np.array([-3.0, -2.0]).reshape(-1,1)
-def run(aware=True):
+def run(aware=[True, True, True]):
     jax.clear_caches()
     key = random.key(42)
     costs_list = []
     costs = []
     costs_array = np.zeros((1,T))
+    stability_costs_array = np.zeros((1,T))
     robot_pos_array_s = np.zeros((1,2,T-1))
     human_pos_array_s = np.zeros((1,2*num_humans,T-1))
     safety_obstacle_array_s = np.zeros((1,T-1))
@@ -85,6 +87,7 @@ def run(aware=True):
     for iter in range(num_iters):
         print(f"Iter : {iter}")
         cost_list = [0]
+        stability_cost_list = [0]
         robot_pos_array = np.zeros((2,1))
         human_pos_array = np.zeros((2*num_humans,1))
         safety_obstacle_list = []
@@ -197,7 +200,7 @@ def run(aware=True):
 
                     humans.controls = jnp.zeros((2,num_humans))
                     for j in range(num_humans):
-                        u_mu, u_cov = MPPI_FORESEE.multi_human_dynamics_actual( humans.X[:,[j]], humans.X[:,MPPI_FORESEE.hindex_list[j,:]], robot.X, humans.U[:,[j]], obstaclesX )
+                        u_mu, u_cov = MPPI_FORESEE.multi_human_dynamics_actual( humans.X[:,[j]], humans.X[:,MPPI_FORESEE.hindex_list[j,:]], robot.X, humans.U[:,[j]], obstaclesX, aware[2] )
                         # sample control input
                         key, subkey = random.split(key)
                         control = u_mu + random.normal(subkey, (2,1)) * jnp.sqrt(u_cov)
@@ -212,6 +215,7 @@ def run(aware=True):
                     human_mus = jnp.copy(humans.X)
 
                     cost_list.append(cost_list[-1] + MPPI_FORESEE.state_cost( robot.X, humans.X, robot_goal, obstaclesX ).item())
+                    stability_cost_list.append( stability_cost_list[-1] + MPPI_FORESEE.stability_state_cost( robot.X, robot_goal ).item() )
 
                     robot_pos_array = np.append(robot_pos_array, robot.X, axis=1)
                     human_pos_array = np.append(human_pos_array, human_mus.reshape(-1,1, order='F'), axis=1)
@@ -251,6 +255,7 @@ def run(aware=True):
             print(f"cost: {cost_list[-1]}")
             costs_list.append(cost_list)
             costs_array = np.append( costs_array, np.asarray(cost_list).reshape(1,-1), axis=0 )
+            stability_costs_array = np.append( stability_costs_array, np.asarray(stability_cost_list).reshape(1,-1), axis=0 )
             costs.append( cost_list[-1] )
             robot_pos_array = robot_pos_array[:,1:]
             human_pos_array = human_pos_array[:,1:]
@@ -261,6 +266,7 @@ def run(aware=True):
             safety_human_array_s = np.append( safety_human_array_s, np.asarray( safety_human_list ).reshape(1,-1), axis=0 )
 
     costs_array = costs_array[1:,:]
+    stability_costs_array = stability_costs_array[1:,:]
     robot_pos_array_s = robot_pos_array_s[1:,:,:]
     human_pos_array_s = human_pos_array_s[1:,:,:]
     safety_obstacle_array_s = safety_obstacle_array_s[1:,:]
@@ -273,6 +279,8 @@ def run(aware=True):
 
     costs_means = np.mean( costs_array, axis=0 )
     costs_stds = np.std( costs_array, axis=0 )
+    stability_costs_means = np.mean( stability_costs_array, axis=0 )
+    stability_costs_stds = np.std( stability_costs_array, axis=0 )
     mppi.true_func.clear_cache()
 
     # pos
@@ -289,10 +297,12 @@ def run(aware=True):
 
 
 
-    return costs_means, costs_stds, (robot_pos_mus, robot_pos_covs), (human_pos_mus, human_pos_covs), (safety_human_mus, safety_human_covs), (safety_obstacle_mus, safety_obstacle_covs)
+    return costs_means, costs_stds, stability_costs_means, stability_costs_stds, (robot_pos_mus, robot_pos_covs), (human_pos_mus, human_pos_covs), (safety_human_mus, safety_human_covs), (safety_obstacle_mus, safety_obstacle_covs)
 
-costs_means_aware, costs_stds_aware, robot_pos_aware, human_pos_aware, safety_human_aware, safety_obstacle_aware = run(aware=True)
-costs_means_unaware, costs_stds_unaware, robot_pos_unaware, human_pos_unaware, safety_human_unaware, safety_obstacle_unaware = run(aware=False)
+costs_means_aware, costs_stds_aware, stability_costs_means_aware, stability_costs_stds_aware, robot_pos_aware, human_pos_aware, safety_human_aware, safety_obstacle_aware = run(aware=[True, True, True])
+costs_means_unaware, costs_stds_unaware, stability_costs_means_unaware, stability_costs_stds_unaware, robot_pos_unaware, human_pos_unaware, safety_human_unaware, safety_obstacle_unaware = run(aware=[False, True, True])
+costs_means_aware_mu, costs_stds_aware_mu, stability_costs_means_aware_mu, stability_costs_stds_aware_mu, robot_pos_aware_mu, human_pos_aware_mu, safety_human_aware_mu, safety_obstacle_aware_mu = run(aware=[True, False, True])
+costs_means_aware_last, costs_stds_aware_last, stability_costs_means_aware_last, stability_costs_stds_aware_last, robot_pos_aware_last, human_pos_aware_last, safety_human_aware_last, safety_obstacle_aware_last = run(aware=[True, True, False])
 
 plt.ioff()
 fig2, ax2 = plt.subplots()
@@ -352,8 +362,16 @@ def plot_costs(ax, costs_means, costs_stds, mu_color='g', std_color='y', label='
 
 
 
-plot_costs( ax2, costs_means_aware[1:], costs_stds_aware[1:], mu_color='g', std_color='y', label='Dynamics Aware' )
-plot_costs( ax2, costs_means_unaware[1:], costs_stds_unaware[1:], mu_color='r', std_color='m', label='Dynamics Unaware' )
+plot_costs( ax2, costs_means_aware[1:], costs_stds_aware[1:], mu_color='b', std_color='c', label='Dynamics Aware' )
+plot_costs( ax2, costs_means_unaware[1:], costs_stds_unaware[1:], mu_color='r', std_color='tab:brown', label='Dynamics Unaware' )
+plot_costs( ax2, costs_means_aware_mu[1:], costs_stds_aware_mu[1:], mu_color='g', std_color='y', label='Dynamics Aware - Mean' )
+plot_costs( ax2, costs_means_aware_last[1:], costs_stds_aware_last[1:], mu_color='tab:purple', std_color='tab:olive', label='Assumed Dynamics' )
+
+plot_costs( ax2, stability_costs_means_aware[1:], stability_costs_stds_aware[1:], mu_color='b--', std_color='c', label='Stability only - Dynamics Aware' )
+plot_costs( ax2, stability_costs_means_unaware[1:], stability_costs_stds_unaware[1:], mu_color='r--', std_color='tab:brown', label='Stability only - Dynamics Unaware' )
+plot_costs( ax2, stability_costs_means_aware_mu[1:], stability_costs_stds_aware_mu[1:], mu_color='g--', std_color='y', label='Stability only - Dynamics Aware - Mean' )
+plot_costs( ax2, stability_costs_means_aware_last[1:], stability_costs_stds_aware_last[1:], mu_color='tab:purple', std_color='tab:olive', label='Stability only - Assumed Dynamics' )
+
 ax2.legend()
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("Accumulated Cost")
@@ -361,8 +379,10 @@ fig2.savefig(name+"_costs.png")
 fig2.savefig(name+"_costs.eps")
 # Safety Human
 fig4, ax4 = plt.subplots()
-plot_costs( ax4, safety_human_aware[0], safety_human_aware[1], mu_color='g', std_color='y', label='Dynamics Aware' )
-plot_costs( ax4, safety_human_unaware[0], safety_human_unaware[1], mu_color='r', std_color='m', label='Dynamics Unaware' )
+plot_costs( ax4, safety_human_aware[0], safety_human_aware[1], mu_color='b', std_color='c', label='Dynamics Aware' )
+plot_costs( ax4, safety_human_unaware[0], safety_human_unaware[1], mu_color='r', std_color='tab:brown', label='Dynamics Unaware' )
+plot_costs( ax4, safety_human_aware_mu[0], safety_human_aware_mu[1], mu_color='g', std_color='y', label='Dynamics Aware - Mean' )
+plot_costs( ax4, safety_human_aware_last[0], safety_human_aware_last[1], mu_color='tab:purple', std_color='tab:olive', label='Assumed Dynamics' )
 ax4.legend()
 ax4.set_xlabel("time (s)")
 ax4.set_ylabel("Min Distance to Humans")
@@ -371,8 +391,10 @@ fig4.savefig(name+"_human_dists.eps")
 
 # Safety Obstacle
 fig5, ax5 = plt.subplots()
-plot_costs( ax5, safety_obstacle_aware[0], safety_obstacle_aware[1], mu_color='g', std_color='y', label='Dynamics Aware' )
-plot_costs( ax5, safety_obstacle_unaware[0], safety_obstacle_unaware[1], mu_color='r', std_color='m', label='Dynamics Unaware' )
+plot_costs( ax5, safety_obstacle_aware[0], safety_obstacle_aware[1], mu_color='b', std_color='c', label='Dynamics Aware' )
+plot_costs( ax5, safety_obstacle_unaware[0], safety_obstacle_unaware[1], mu_color='r', std_color='tab:brown', label='Dynamics Unaware' )
+plot_costs( ax5, safety_obstacle_aware_mu[0], safety_obstacle_aware_mu[1], mu_color='g', std_color='y', label='Dynamics Aware - Mean' )
+plot_costs( ax5, safety_obstacle_aware_last[0], safety_obstacle_aware_last[1], mu_color='tab:purple', std_color='tab:olive', label='Assumed Dynamics' )
 ax5.legend()
 ax5.set_xlabel("time (s)")
 ax5.set_ylabel("Min Distance to obstacles")
