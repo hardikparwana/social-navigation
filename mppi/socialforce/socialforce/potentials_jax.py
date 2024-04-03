@@ -108,6 +108,7 @@ class PedSpacePotential(object):
         closest_points = jnp.swapaxes(
             jnp.stack([B[i] for B, i in zip(space, closest_i)]),
             0, 1)  # index order: pedestrian, boundary, coordinates
+        print(f"r_a: {r_a}")
         return r_a - closest_points
 
     # @staticmethod
@@ -115,9 +116,9 @@ class PedSpacePotential(object):
     #     return PedSpacePotential.value_r_aB(PedSpacePotential.r_aB(state))
 
     @staticmethod
-    def grad_r_aB(state, delta=1e-3):
+    def grad_r_aB(state, space, delta=1e-3):
         """Compute gradient wrt r_aB using finite difference differentiation."""
-        r_aB = PedSpacePotential.r_aB(state)
+        r_aB = PedSpacePotential.r_aB(state, space)
 
         dx = jnp.array([[[delta, 0.0]]])
         dy = jnp.array([[[0.0, delta]]])

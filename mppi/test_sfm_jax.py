@@ -28,13 +28,24 @@ if 1:
     s = socialforce.Simulator( social_state, delta_t = dt )
     state = social_state
 
+    # space = [
+    #     jnp.array([[3.0, 7.0], [4.0, 7.0]]),
+    #     jnp.array([[4, 4]    , [5, 5]     ])
+    # ]
+    space = [
+        jnp.array([[3.0, 7.0]]),
+        jnp.array([[4, 4]])
+    ]
+    for i in range(len(space)):
+        plt.scatter(space[i][:,0], space[i][:,1])  # plot vs scatter
+
     MAX_SPEED_MULTIPLIER = 1.3
     initial_speed = 1.0
     initial_speeds = jnp.ones((initial_state.shape[0])) * initial_speed
     max_speeds = MAX_SPEED_MULTIPLIER * initial_speeds
 
     while (t<tf):
-        F, state = s.step(state, initial_speeds, max_speeds, dt)
+        F, state = s.step(state, initial_speeds, max_speeds, dt, space)
         humans.set_offsets(state[:,0:2])
 
         fig.canvas.draw()
