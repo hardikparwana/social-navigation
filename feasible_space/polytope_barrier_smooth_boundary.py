@@ -287,7 +287,7 @@ with writer.saving(fig1, name, 100):
             for i in range(hull.A.shape[0]):
                 pts = get_intersection_points( hull.A[i,:], hull.b[i], lb , ub )
                 if len(pts)>0:
-                    plt.plot([ pts[0][0], pts[1][0] ], [ pts[0][1], pts[1][1] ]  )
+                    ax1[1].plot([ pts[0][0], pts[1][0] ], [ pts[0][1], pts[1][1] ]  )
                 else:
                     continue
                 new_pts, temp_volume = generate_points_about_line( pts ) #, num_line_points, num_normal_points, increment )

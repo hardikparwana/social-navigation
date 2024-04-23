@@ -12,6 +12,7 @@ from matplotlib.animation import FFMpegWriter
 from crowd import crowd
 from humansocialforce import *
 import jax.numpy as jnp
+import pdb
 
 # Sim parameters
 t = 0
@@ -28,7 +29,7 @@ d_min_human = 0.5
 d_min_obstacle = 0.5
 use_ellipse = False
 plot_ellipse = True
-use_circle = False
+use_circle = False #False
 plot_circle = True
 alpha_polytope = 1.0
 min_polytope_volume_ellipse = -0.5
@@ -61,12 +62,16 @@ obstacles.append( circle( ax1[0], pos = np.array([0.0,-0.6]), radius = 0.5 ) )
 obstacles.append( circle( ax1[0], pos = np.array([-1.0,2.2]), radius = 0.5 ) )  
 obstacles.append( circle( ax1[0], pos = np.array([0.0,2.2]), radius = 0.5 ) )
 obstacle_states = np.append( obstacles[0].X, np.array([[obstacles[0].radius]]), axis=0 )
+
 for i in range(1,len(obstacles)):
+    
     state = np.append( obstacles[i].X, np.array([[obstacles[i].radius]]), axis=0 )
+    
     obstacle_states = np.append(obstacle_states, state, axis=1  )
+    
 obstacle_states = jnp.asarray(obstacle_states)
 
-# exit()0
+# exit()
 # Robot
 # robot = single_integrator_square( ax1[0], pos = np.array([ 0, 0 ]), dt = dt, plot_polytope=False )
 robot = bicycle( ax1[0], pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), dt = dt, plot_polytope=False )
@@ -93,6 +98,8 @@ socialforce_initial_state = np.append( np.append( np.copy( humans.X.T ), 0*np.co
 robot_social_state = np.array([ robot.X[0,0], robot.X[1,0], robot.X[3,0]*np.cos(robot.X[2,0]), robot.X[3,0]*np.sin(robot.X[2,0]) , goal[0,0], goal[1,0]]).reshape(1,-1)
 socialforce_initial_state = np.append( socialforce_initial_state, robot_social_state, axis=0 )
 humans_socialforce = socialforce.Simulator( socialforce_initial_state, delta_t = dt )
+
+
 
 metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
 writer = FFMpegWriter(fps=10, metadata=metadata)
@@ -153,6 +160,9 @@ def polytope_ellipse_volume_from_states(robot_state, obstacle_states, humans_sta
 def polytope_circle_volume_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b):
     return compute_circle_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b)[2]
  
+
+
+
 polytope_ellipse_volume_from_states_grad = grad( polytope_ellipse_volume_from_states, argnums=(0,1,2,3) )
 # polytope_ellipse_volume_from_states_grad2 = grad( polytope_ellipse_volume_from_states, argnums=(0) )
 
@@ -161,6 +171,8 @@ polytope_circle_volume_from_states_grad = grad( polytope_circle_volume_from_stat
 pos_x = []
 pos_y = []
     
+
+
 if 1:
 # with writer.saving(fig1, 'Videos/DU_fs_humans_obstacles_v3.mp4', 100): 
     while t < tf:
@@ -172,7 +184,7 @@ if 1:
 
         # desired input
         u2_ref.value = robot.nominal_controller( goal, k_v = k_v )
-       
+        
         A, b = construct_barrier_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls) )
         A = np.append( np.asarray(A), -control_bound_polytope.A, axis=0 )
         b = np.append( np.asarray(b), -control_bound_polytope.b.reshape(-1,1), axis=0 )
@@ -182,7 +194,7 @@ if 1:
         hull = pt.Polytope( -A, -b )
         hull_plot = hull.plot(ax1[1], color = 'g')
         plot_polytope_lines( ax1[1], hull, control_bound )
-
+        
         #volume.append(pt.volume( hull, nsamples=50000 ))
         volume2.append(  np.array(mc_polytope_volume( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), bounds = control_bound))  )
         # ax1[2].plot( volume, 'r')
@@ -226,6 +238,7 @@ if 1:
                 volume_circle2.append(volume_new)
                 ax1[2].plot( volume_circle2, 'g--' )
                 ax1[1].plot( circle_inner[0,:], circle_inner[1,:], 'c--', label='Inner Circle' )
+            
             volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = polytope_circle_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
             # print(f" polytope_volume_from_states_grad: {volume_grad_robot} ")
             
@@ -235,6 +248,7 @@ if 1:
             b_polytope = np.asarray(- dh_polytope_dx @ robot.f() - alpha_polytope * h_polytope - np.sum(volume_grad_humansX * humans.controls ))
             A2.value = np.append( A, np.asarray(A_polytope), axis=0 )
             b2.value = np.append( b, np.asarray(b_polytope), axis=0 )
+            
      
         controller2.solve()
         if controller2.status == 'infeasible':
@@ -247,7 +261,7 @@ if 1:
         # robot.step( u2_ref.value )
         robot.render_plot()
         humans.render_plot(humans.X)
-
+        
         ax1[1].set_xlabel('Linear Acceleration'); ax1[1].set_ylabel('Angular Velocity')
         # ax1[1].set_xlabel(r'$u_x$'); ax1[1].set_ylabel(r'$u_y$')
         ax1[1].scatter( u2.value[0,0], u2.value[1,0], c = 'r', label = 'CBF-QP chosen control' )
