@@ -29,7 +29,7 @@ def plot_polytope_lines(ax, hull, u_bound):
             if np.abs(A[i,0])>0.001:
                 ax.axvline( b[i]/A[i,0], color='k', linestyle='--', alpha = alpha )
             else:
-                ax.vline( 0.0, color='k', linestyle='--', alpha = alpha )
+                ax.axvline( 0.0, color='k', linestyle='--', alpha = alpha )
 
 # @jit
 # def mc_polytope_volume(A, b, bounds = 30, num_samples=10000):
@@ -41,38 +41,53 @@ def plot_polytope_lines(ax, hull, u_bound):
 #     return vol
 # mc_polytope_volume_grad = grad( mc_polytope_volume, 0 )
 
-# @jit
-def mc_polytope_volume(A, b, bounds = 30, lb = [-2, -2], ub=[2, 2]):
+@jit
+def mc_polytope_volume(A, b, lb = [-2, -2], ub=[2, 2], factor1=0.001, factor2=1.0, factor3=0.05):
     # Au<=b
+    # print(f"A: {A}, b:{b}, lb: {lb}, ub: {ub}")
+
+    Anorm = jnp.linalg.norm(A, axis=1)
+    A = A / Anorm.reshape(-1,1)
+    b = b / Anorm.reshape(-1,1)
+
     key = jax.random.PRNGKey(10)
-    num_samples=30000#500000
+    
+    num_samples=50000#500000
     # samples = jax.random.uniform( key, shape=(2,num_samples), minval=-bounds, maxval=bounds )#A.shape[1]   
-    samples_x = jax.random.uniform( key, shape=(1,num_samples), minval=lb[0], maxval=ub[0] )
-    samples_y = jax.random.uniform( key, shape=(1,num_samples), minval=lb[1], maxval=ub[1] )
+    key, subkey = jax.random.split(key)
+    samples_x = jax.random.uniform( subkey, shape=(1,num_samples), minval=lb[0], maxval=ub[0] )
+    key, subkey = jax.random.split(key)
+    samples_y = jax.random.uniform( subkey, shape=(1,num_samples), minval=lb[1], maxval=ub[1] )
     samples = jnp.append( samples_x, samples_y, axis=0 )
 
-    aux = A @ samples - b    
-    aux = -aux #- 0.3
-    aux = jnp.min(aux, axis=0)
-    aux = (jnp.tanh( aux / 0.01 ) + 1.0)/2.0
+    aux = A @ samples - b    # supposed to be negative for being inside feasible space
+    aux = -aux #- factor3 # now it should be > 0
+    aux = jnp.min(aux, axis=0) - factor3 #- 0.05
+    aux = (jnp.tanh( aux / factor1 ) + factor2)/2.0
     aux = jnp.sum( aux )
-    vol = ((2*bounds)**2) * (aux / num_samples)
+    # vol = ((2*bounds)**2) * (aux / num_samples)
+    vol = (ub[0]-lb[0])*(ub[1]-lb[1]) * (aux / num_samples)
+    # print(f"volume: {vol}")
     return vol
 mc_polytope_volume_grad = jit(grad(mc_polytope_volume, 0))
 
-def mc_polytope_volume_about_lines(A, b, samples, total_volume):
+@jit
+def mc_polytope_volume_about_lines(A, b, samples, total_volume, factor1=0.001, factor2=1.0, factor3=0.05):
+    Anorm = jnp.linalg.norm(A, axis=1)
+    A = A / Anorm.reshape(-1,1)
+    b = b / Anorm.reshape(-1,1)
     aux = A @ samples - b    
     aux = -aux
-    aux = jnp.min(aux, axis=0)
-    aux = (jnp.tanh( aux / 0.001 ) + 1.0)/2.0    
+    aux = jnp.min(aux, axis=0) - factor3 #- 0.05
+    aux = (jnp.tanh( aux / factor1 ) + factor2)/2.0
     aux = jnp.sum( aux )
     vol = total_volume * (aux / samples.shape[1]) #num_samples)
     return vol
 mc_polytope_volume_about_lines_grad = jit(grad(mc_polytope_volume_about_lines, 1))
 
-num_line_points = 50
-num_normal_points = 30
-increment = 0.0001
+num_line_points = 50 #200 #50
+num_normal_points = 30 #100 #30
+increment = 0.0001 #0.001 # 0.0001
 # @jit
 def generate_points_about_line(pts): #, num_line_pts, num_normal_points, increment):
     
@@ -100,7 +115,7 @@ def generate_points_about_line(pts): #, num_line_pts, num_normal_points, increme
 def get_intersection_points(ai, bi, lb, ub):
 
     bpt = []
-  
+    
     if jnp.abs(ai[1])>0.01:
         uy =  (bi - ai[0] * lb[0]) / ai[1]
         if ((uy <= ub[1]) and (uy >= lb[1])):
