@@ -41,15 +41,13 @@ def plot_polytope_lines(ax, hull, u_bound):
 #     return vol
 # mc_polytope_volume_grad = grad( mc_polytope_volume, 0 )
 
-@jit
+# @jit
 def mc_polytope_volume(A, b, lb = [-2, -2], ub=[2, 2], factor1=0.001, factor2=1.0, factor3=0.05):
     # Au<=b
     # print(f"A: {A}, b:{b}, lb: {lb}, ub: {ub}")
-
     Anorm = jnp.linalg.norm(A, axis=1)
     A = A / Anorm.reshape(-1,1)
     b = b / Anorm.reshape(-1,1)
-
     key = jax.random.PRNGKey(10)
     
     num_samples=50000#500000

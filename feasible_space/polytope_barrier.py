@@ -219,9 +219,14 @@ with writer.saving(fig1, name, 100):
         ub = ub + 0.5
         hull_plot = hull.plot(ax1[1], color = 'g')
         plot_polytope_lines( ax1[1], hull, control_bound )
-
         volume.append(pt.volume( hull ))#, nsamples=50000 ))
-        volume2.append(np.array(mc_polytope_volume( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), lb=lb, ub=ub ))) # bounds = control_bound)))
+        print(f"{jnp.asarray(hull.b.reshape(-1,1))}")
+        print(f"{hull.A}")
+        print(f"{jnp.asarray(hull.A)}")
+        print(f"{jnp.asarray(hull.b.reshape(-1,1))}")
+        print(f"{hull.A}")
+        print(f"{jnp.asarray(hull.A)}")
+        volume2.append(np.array(mc_polytope_volume( jnp.asarray(hull.A), jnp.asarray(hull.b.reshape(-1,1)), lb=lb, ub=ub ))) # bounds = control_bound)))
         # ax1[2].plot( volume, 'r' )
         ax1[2].plot( volume2, 'g' )
         ax1[2].set_title('Polytope Volume')
@@ -229,7 +234,6 @@ with writer.saving(fig1, name, 100):
 
         A2.value = np.append( A, np.zeros((1,2)), axis=0 )
         b2.value = np.append( b, np.zeros((1,1)), axis=0 )
-        
         if use_ellipse:
             ellipse_B2, ellipse_d2, volume_new = compute_ellipse_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
             if plot_ellipse:
@@ -243,7 +247,7 @@ with writer.saving(fig1, name, 100):
                 # ax1[1].plot( ellipse_outer[0,:], ellipse_outer[1,:], 'c--', label='Jax Outer Ellipse' )
 
             volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = polytope_ellipse_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
-            print(f"hello vol:{volume_new}, grad: {volume_grad_robot.T}, grad_obs: {volume_grad_obstacles.T}, grad_humans: {volume_grad_humansX.T}")
+            # print(f"hello vol:{volume_new}, grad: {volume_grad_robot.T}, grad_obs: {volume_grad_obstacles.T}, grad_humans: {volume_grad_humansX.T}")
             # t0 = time.time()
             # volume_grad_robot2 = polytope_ellipse_volume_from_states_grad2(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
             # print(f"time 2 : {time.time() - t0}")
@@ -279,15 +283,13 @@ with writer.saving(fig1, name, 100):
             b2.value = np.append( b, np.asarray(b_polytope), axis=0 )
 
         elif use_smooth:
-            # print(f"smooth")
-
             sampled_pts = 0
             init = 0 
             total_volume = 0
             for i in range(hull.A.shape[0]):
                 pts = get_intersection_points( hull.A[i,:], hull.b[i], lb , ub )
                 if len(pts)>0:
-                    plt.plot([ pts[0][0], pts[1][0] ], [ pts[0][1], pts[1][1] ]  )
+                    ax1[1].plot([ pts[0][0], pts[1][0] ], [ pts[0][1], pts[1][1] ]  )
                 else:
                     continue
                 new_pts, temp_volume = generate_points_about_line( pts ) #, num_line_points, num_normal_points, increment )
@@ -299,7 +301,6 @@ with writer.saving(fig1, name, 100):
                     sampled_pts = jnp.append( sampled_pts, new_pts, axis=1 )
                 ax1[1].scatter(new_pts[0,::3], new_pts[1,::3], s=3, alpha=0.1)
             samples = sampled_pts 
-
             volume_new = compute_smooth_volume_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)), lb, ub)
 
             volume_circle2.append(volume_new)
@@ -312,7 +313,7 @@ with writer.saving(fig1, name, 100):
             volume_grad_robot_circle, volume_grad_obstacles_circle, volume_grad_humansX_circle, volume_grad_humansU_circle = polytope_circle_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
             
             # print(f"hello vol:{volume_new}, vol ellipse: {volume_new_circle} grad: {volume_grad_robot.T}, grad_ell: {volume_grad_robot_circle.T}")
-            print(f"hello vol:{volume_new}, grad: {volume_grad_robot.T}, grad_obs: {volume_grad_obstacles.T}, grad_humans: {volume_grad_humansX.T} *** circle: robot:{volume_grad_robot_circle.T}, obs: {volume_grad_obstacles_circle.T}, humans: {volume_grad_humansX_circle.T} ")
+            # print(f"hello vol:{volume_new}, grad: {volume_grad_robot.T}, grad_obs: {volume_grad_obstacles.T}, grad_humans: {volume_grad_humansX.T} *** circle: robot:{volume_grad_robot_circle.T}, obs: {volume_grad_obstacles_circle.T}, humans: {volume_grad_humansX_circle.T} ")
 
 
             h_polytope = volume_new
