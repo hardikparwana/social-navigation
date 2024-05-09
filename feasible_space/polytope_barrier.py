@@ -160,7 +160,7 @@ def compute_smooth_volume_from_states(robot_state, obstacle_states, humans_state
     A, b = construct_barrier_from_states(robot_state, obstacle_states, humans_states, human_states_dot )
     A2 = jnp.append( -A, control_A, axis=0 )
     b2 = jnp.append( -b, control_b, axis=0 )
-    vol = mc_polytope_volume( A2, b2, bounds=control_bound, lb=lb[:,0], ub=ub[:,0] )
+    vol = mc_polytope_volume( A2, b2, lb=lb[:,0], ub=ub[:,0] ) #bounds=control_bound,
     return vol
 
 @jit
@@ -221,7 +221,7 @@ with writer.saving(fig1, name, 100):
         plot_polytope_lines( ax1[1], hull, control_bound )
 
         volume.append(pt.volume( hull ))#, nsamples=50000 ))
-        volume2.append(np.array(mc_polytope_volume( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), bounds = control_bound)))
+        volume2.append(np.array(mc_polytope_volume( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), lb=lb, ub=ub ))) # bounds = control_bound)))
         # ax1[2].plot( volume, 'r' )
         ax1[2].plot( volume2, 'g' )
         ax1[2].set_title('Polytope Volume')
