@@ -8,3 +8,7 @@ refineCBF/examples/dubins/__pycache__/*
 refineCBF/examples/dubins/*.npy
 refineCBF/refine_cbfs/__pycache__/*
 refineCBF/refine_cbfs/utils/__pycache__/*
+.ipynb_checkpoints/
+media/
+mppi/
+paper_codes/pytorch_mppi/

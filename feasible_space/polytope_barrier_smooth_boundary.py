@@ -25,13 +25,13 @@ goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
 num_obstacles = 4
 k_v = 1.5 #1.0
-use_ellipse = False#False
+use_ellipse = True#False
 plot_ellipse = True#False
 use_circle = False#True
-plot_circle = True#False#
+plot_circle = False#False#
 use_smooth = True
 alpha_polytope = 0.8#1.0
-alpha_polytope_smooth = 0.01 #0.1#1.0
+alpha_polytope_smooth = 0.5 #0.1#1.0
 min_polytope_volume_ellipse = -0.5
 min_polytope_volume_circle = 0.0
 
@@ -126,7 +126,7 @@ def construct_barrier_from_states(robot_state, obstacle_states, humans_states, h
                 A = jnp.append( A, dh_dx @ robot.g_jax(robot_state), axis = 0 )
                 b = jnp.append( b, - alpha * h - dh_dx @ robot.f_jax(robot_state), axis = 0 )
             return A[1:], b[1:]
-construct_barrier_from_states_jit = jit(construct_barrier_from_states)
+# construct_barrier_from_states_jit = jit(construct_barrier_from_states)
 
 @jit       
 def ellipse_volume( B, d ):
@@ -160,12 +160,21 @@ def compute_smooth_volume_from_states(robot_state, obstacle_states, humans_state
     A, b = construct_barrier_from_states(robot_state, obstacle_states, humans_states, human_states_dot )
     A2 = jnp.append( -A, control_A, axis=0 )
     b2 = jnp.append( -b, control_b, axis=0 )
-    vol = mc_polytope_volume( A2, b2, lb=lb[:,0], ub=ub[:,0] ) #bounds=control_bound,
+    # print(f"inside: A: {A2}, b:{b2}, lb: {lb[:,0]}, ub: {ub[:,0]}")
+    # print(f"inside")
+    vol = mc_polytope_volume( A2, b2, lb=lb[:,0], ub=ub[:,0] )
     return vol
 
 @jit
+def test_func(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b, lb, ub):
+    A, b = construct_barrier_from_states(robot_state, obstacle_states, humans_states, human_states_dot )
+    A2 = jnp.append( -A, control_A, axis=0 )
+    b2 = jnp.append( -b, control_b, axis=0 )
+    return jnp.sum(A2)
+
+@jit
 def compute_smooth_volume_for_grad_from_states(robot_state, obstacle_states, humans_states, human_states_dot, control_A, control_b, samples, total_volume):
-    A, b = construct_barrier_from_states_jit(robot_state, obstacle_states, humans_states, human_states_dot )
+    A, b = construct_barrier_from_states(robot_state, obstacle_states, humans_states, human_states_dot )
     A2 = jnp.append( -A, control_A, axis=0 )
     b2 = jnp.append( -b, control_b, axis=0 )
     vol = mc_polytope_volume_about_lines( A2, b2, samples, total_volume )
@@ -219,14 +228,12 @@ with writer.saving(fig1, name, 100):
         ub = ub + 0.5
         hull_plot = hull.plot(ax1[1], color = 'g')
         plot_polytope_lines( ax1[1], hull, control_bound )
+
         volume.append(pt.volume( hull ))#, nsamples=50000 ))
-        print(f"{jnp.asarray(hull.b.reshape(-1,1))}")
-        print(f"{hull.A}")
-        print(f"{jnp.asarray(hull.A)}")
-        print(f"{jnp.asarray(hull.b.reshape(-1,1))}")
-        print(f"{hull.A}")
-        print(f"{jnp.asarray(hull.A)}")
-        volume2.append(np.array(mc_polytope_volume( jnp.asarray(hull.A), jnp.asarray(hull.b.reshape(-1,1)), lb=lb, ub=ub ))) # bounds = control_bound)))
+        # print(f"ouside")
+        volume2.append(np.array(mc_polytope_volume( jnp.array(hull.A), jnp.array(hull.b.reshape(-1,1)), lb=lb[:,0], ub=ub[:,0]))) #bounds = control_bound)))
+        # print(f"outside: A: {-A}, hullA: {hull.A}, b: {-b}, hullb:{hull.b}, lb: {lb[:,0]}, ub: {ub[:,0]}, volume: {volume2[-1]}")
+        print(f"volume: {volume2[-1]}")
         # ax1[2].plot( volume, 'r' )
         ax1[2].plot( volume2, 'g' )
         ax1[2].set_title('Polytope Volume')
@@ -234,6 +241,7 @@ with writer.saving(fig1, name, 100):
 
         A2.value = np.append( A, np.zeros((1,2)), axis=0 )
         b2.value = np.append( b, np.zeros((1,1)), axis=0 )
+        
         if use_ellipse:
             ellipse_B2, ellipse_d2, volume_new = compute_ellipse_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
             if plot_ellipse:
@@ -264,6 +272,18 @@ with writer.saving(fig1, name, 100):
             # volume_grad_robot_smooth, volume_grad_obstacles_smooth, volume_grad_humansX_smooth, volume_grad_humansU_smooth = polytope_smooth_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
             # print(f"smooth vol:{volume_new_smooth}, grad: {volume_grad_robot_smooth.T}, grad_obs: {volume_grad_obstacles_smooth.T}, grad_humans: {volume_grad_humansX_smooth.T}")
 
+
+            xs = np.linspace( -control_bound, control_bound, 3 )
+            A_polytope_plot = -A_polytope
+            b_polytope_plot = -b_polytope
+            if np.abs(A_polytope[0,1])>0.001:
+                ax1[1].plot( xs, (b_polytope_plot[0,0] - A_polytope_plot[0,0]*xs)/A_polytope_plot[0,1], color='r', linestyle='--' )
+            else:
+                if np.abs(A_polytope_plot[0,0])>0.001:
+                    ax1[1].axvline( b_polytope_plot[0,0]/A_polytope_plot[0,0], color='r', linestyle='--')
+                else:
+                    ax1[1].axvline( 0.0, color='r', linestyle='--' )
+
         elif use_circle:
             circle_r2, circle_c2, volume_new = compute_circle_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
             if plot_circle:
@@ -282,46 +302,97 @@ with writer.saving(fig1, name, 100):
             A2.value = np.append( A, np.asarray(A_polytope), axis=0 )
             b2.value = np.append( b, np.asarray(b_polytope), axis=0 )
 
+            xs = np.linspace( -control_bound, control_bound, 3 )
+            A_polytope_plot = -A_polytope
+            b_polytope_plot = -b_polytope
+            if np.abs(A_polytope[0,1])>0.001:
+                ax1[1].plot( xs, (b_polytope_plot[0,0] - A_polytope_plot[0,0]*xs)/A_polytope_plot[0,1], color='r', linestyle='--' )
+            else:
+                if np.abs(A_polytope_plot[0,0])>0.001:
+                    ax1[1].axvline( b_polytope_plot[0,0]/A_polytope_plot[0,0], color='r', linestyle='--')
+                else:
+                    ax1[1].axvline( 0.0, color='r', linestyle='--' )
+
+
+
         elif use_smooth:
-            sampled_pts = 0
-            init = 0 
-            total_volume = 0
-            for i in range(hull.A.shape[0]):
-                pts = get_intersection_points( hull.A[i,:], hull.b[i], lb , ub )
-                if len(pts)>0:
-                    ax1[1].plot([ pts[0][0], pts[1][0] ], [ pts[0][1], pts[1][1] ]  )
-                else:
-                    continue
-                new_pts, temp_volume = generate_points_about_line( pts ) #, num_line_points, num_normal_points, increment )
-                total_volume = total_volume + temp_volume    
-                if init==0:
-                    sampled_pts = new_pts
-                    init = 1
-                else:
-                    sampled_pts = jnp.append( sampled_pts, new_pts, axis=1 )
-                ax1[1].scatter(new_pts[0,::3], new_pts[1,::3], s=3, alpha=0.1)
-            samples = sampled_pts 
-            volume_new = compute_smooth_volume_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)), lb, ub)
 
-            volume_circle2.append(volume_new)
-            ax1[2].plot( volume_circle2, 'g--' )
+            circle_r2, circle_c2, volume_new = compute_circle_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
+            volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = polytope_circle_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
+            print(f" polytope_volume_from_states_grad: {volume_grad_robot} ")
             
-            volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = compute_smooth_volume_for_grad_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)), samples, total_volume)
-            # volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = polytope_smooth_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)), lb, ub )
-
-            # circle_r2, circle_c2, volume_new_circle = compute_circle_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
-            volume_grad_robot_circle, volume_grad_obstacles_circle, volume_grad_humansX_circle, volume_grad_humansU_circle = polytope_circle_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
-            
-            # print(f"hello vol:{volume_new}, vol ellipse: {volume_new_circle} grad: {volume_grad_robot.T}, grad_ell: {volume_grad_robot_circle.T}")
-            # print(f"hello vol:{volume_new}, grad: {volume_grad_robot.T}, grad_obs: {volume_grad_obstacles.T}, grad_humans: {volume_grad_humansX.T} *** circle: robot:{volume_grad_robot_circle.T}, obs: {volume_grad_obstacles_circle.T}, humans: {volume_grad_humansX_circle.T} ")
-
-
-            h_polytope = volume_new
+            h_polytope = volume_new - min_polytope_volume_circle
             dh_polytope_dx = volume_grad_robot.T
             A_polytope = np.asarray(dh_polytope_dx @ robot.g())
-            b_polytope = np.asarray(- dh_polytope_dx @ robot.f() - alpha_polytope_smooth * h_polytope - np.sum(volume_grad_humansX * humans.controls ))
+            b_polytope = np.asarray(- dh_polytope_dx @ robot.f() - alpha_polytope * h_polytope - np.sum(volume_grad_humansX * humans.controls ))
             A2.value = np.append( A, np.asarray(A_polytope), axis=0 )
             b2.value = np.append( b, np.asarray(b_polytope), axis=0 )
+
+            xs = np.linspace( -control_bound, control_bound, 3 )
+            A_polytope_plot = -A_polytope
+            b_polytope_plot = -b_polytope
+            if np.abs(A_polytope[0,1])>0.001:
+                ax1[1].plot( xs, (b_polytope_plot[0,0] - A_polytope_plot[0,0]*xs)/A_polytope_plot[0,1], color='r', linestyle='--' )
+            else:
+                if np.abs(A_polytope_plot[0,0])>0.001:
+                    ax1[1].axvline( b_polytope_plot[0,0]/A_polytope_plot[0,0], color='r', linestyle='--')
+                else:
+                    ax1[1].axvline( 0.0, color='r', linestyle='--' )
+            # print(f"smooth")
+
+            # sampled_pts = 0
+            # init = 0 
+            # total_volume = 0
+            # for i in range(hull.A.shape[0]):
+            #     pts = get_intersection_points( hull.A[i,:], hull.b[i], lb , ub )
+            #     if len(pts)>0:
+            #         ax1[1].plot([ pts[0][0], pts[1][0] ], [ pts[0][1], pts[1][1] ]  )
+            #     else:
+            #         continue
+            #     new_pts, temp_volume = generate_points_about_line( pts ) #, num_line_points, num_normal_points, increment )
+            #     total_volume = total_volume + temp_volume    
+            #     if init==0:
+            #         sampled_pts = new_pts
+            #         init = 1
+            #     else:
+            #         sampled_pts = jnp.append( sampled_pts, new_pts, axis=1 )
+            #     ax1[1].scatter(new_pts[0,::3], new_pts[1,::3], s=3, alpha=0.1)
+            # samples = sampled_pts 
+
+            # volume_new = compute_smooth_volume_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)), lb, ub)
+            # # print(f"volume new: {volume_new}")
+            # volume_circle2.append(volume_new)
+            # ax1[2].plot( volume_circle2, 'r--' )
+            # volume_lines = compute_smooth_volume_for_grad_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)), samples, total_volume)
+            # # volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = compute_smooth_volume_for_grad_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)), samples, total_volume)
+            # volume_grad_robot, volume_grad_obstacles, volume_grad_humansX, volume_grad_humansU = polytope_smooth_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)), lb, ub )
+            
+            # # circle_r2, circle_c2, volume_new_circle = compute_circle_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
+            # volume_grad_robot_ellipse, volume_grad_obstacles_ellipse, volume_grad_humansX_ellipse, volume_grad_humansU_ellipse = polytope_ellipse_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
+            # # volume_grad_robot_circle, volume_grad_obstacles_circle, volume_grad_humansX_circle, volume_grad_humansU_circle = polytope_circle_volume_from_states_grad(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)))
+            
+            # # print(f"hello vol:{volume_new}, vol ellipse: {volume_new_circle} grad: {volume_grad_robot.T}, grad_ell: {volume_grad_robot_circle.T}")
+            # print(f"hello vol:{volume_new}, grad: {volume_grad_robot.T}, grad_obs: {volume_grad_obstacles.T}, grad_humans: {volume_grad_humansX.T}") # *** circle: robot:{volume_grad_robot_circle.T}, obs: {volume_grad_obstacles_circle.T}, humans: {volume_grad_humansX_circle.T} ")
+
+            # h_polytope = volume_new
+            # dh_polytope_dx = volume_grad_robot.T
+            # A_polytope = np.asarray(dh_polytope_dx @ robot.g())
+            # b_polytope = np.asarray(- dh_polytope_dx @ robot.f() - alpha_polytope_smooth * h_polytope - np.sum(volume_grad_humansX * humans.controls ))
+            # A2.value = np.append( A, np.asarray(A_polytope), axis=0 )
+            # b2.value = np.append( b, np.asarray(b_polytope), axis=0 )
+
+            # # hull2 = pt.Polytope( -A2.value, -b2.value )
+            # # plot_polytope_lines( ax1[1], hull2, control_bound )
+            # xs = np.linspace( -control_bound, control_bound, 3 )
+            # A_polytope_plot = -A_polytope
+            # b_polytope_plot = -b_polytope
+            # if np.abs(A_polytope[0,1])>0.001:
+            #     ax1[1].plot( xs, (b_polytope_plot[0,0] - A_polytope_plot[0,0]*xs)/A_polytope_plot[0,1], color='r', linestyle='--' )
+            # else:
+            #     if np.abs(A_polytope_plot[0,0])>0.001:
+            #         ax1[1].axvline( b_polytope_plot[0,0]/A_polytope_plot[0,0], color='r', linestyle='--')
+            #     else:
+            #         ax1[1].axvline( 0.0, color='r', linestyle='--' )
     
         controller2.solve()
         if controller2.status == 'infeasible':
