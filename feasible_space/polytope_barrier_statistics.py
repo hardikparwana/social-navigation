@@ -18,9 +18,9 @@ import pdb
 name = 'Videos/case1_ellipse_barrier.mp4'
 t = 0
 dt = 0.03
-tf = 7#9#15
-alpha = 6#5#2.0#3.0#20#6
-alpha1 = 2#20#4.0#0.5#50#2
+tf = 7 #7#9#15
+alpha = 6#6
+alpha1 = 2#2 
 control_bound = 2.0
 goal = np.array([-3.0,-1.0]).reshape(-1,1)
 num_people = 5
@@ -31,19 +31,26 @@ plot_ellipse = True#False
 use_circle = False#True
 plot_circle = True#False#
 use_smooth = True
-alpha_polytope = 0.8#1.0
+alpha_polytope = 2.0 #0.8 #0.8#1.0
 alpha_polytope_smooth = 0.01 #0.1#1.0
 min_polytope_volume_ellipse = -0.5
 min_polytope_volume_circle = 0.0
 
+print(f"alpha polytttope: {alpha_polytope}, alpha:{alpha}, alpha1:{alpha1}")
+
 ######### holonomic controller
-n = 4 + num_obstacles + num_people + 1 # number of constraints
+n = 4 + num_obstacles + num_people #+ 1 # number of constraints
 u2 = cp.Variable((2,1))
 u2_ref = cp.Parameter((2,1))
-objective2 = cp.Minimize( cp.sum_squares( u2 - u2_ref ) )
+delta = cp.Variable()
+objective2 = cp.Minimize( cp.sum_squares( u2 - u2_ref ) + 100 * cp.sum_squares(delta) )
 A2 = cp.Parameter((n,2))
 b2 = cp.Parameter((n,1))
+A2_polytope = cp.Parameter((1,2))
+b2_polytope = cp.Parameter((1,1))
 const2 = [A2 @ u2 >= b2]
+const2 += [A2_polytope @ u2 >= b2_polytope + delta]
+# const2 += [delta==0]
 controller2 = cp.Problem( objective2, const2 )
 ##########
 
@@ -244,11 +251,19 @@ def simulate(robot_pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), kv=1.5, kx = 1.0, p
             ax1[2].plot( volume2, 'g' )
             ax1[2].set_title('Polytope Volume')
 
-            A2.value = np.append( A, np.zeros((1,2)), axis=0 )
-            b2.value = np.append( b, np.zeros((1,1)), axis=0 )
+            # A2.value = np.append( A, np.zeros((1,2)), axis=0 )
+            # b2.value = np.append( b, np.zeros((1,1)), axis=0 )
+            A2.value = A
+            b2.value = b
+            A2_polytope.value = np.zeros((1,2))
+            b2_polytope.value = np.zeros((1,1))
+        
             if include_fs_cbf:
                 if use_ellipse:
-                    ellipse_B2, ellipse_d2, volume_new = compute_ellipse_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
+                    try:
+                        ellipse_B2, ellipse_d2, volume_new = compute_ellipse_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
+                    except:
+                        return t
                     if plot:
                         if plot_ellipse:
                             angles   = np.linspace( 0, 2 * np.pi, 100 )
@@ -263,8 +278,10 @@ def simulate(robot_pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), kv=1.5, kx = 1.0, p
                     dh_polytope_dx = volume_grad_robot.T
                     A_polytope = np.asarray(dh_polytope_dx @ robot.g())
                     b_polytope = np.asarray(- dh_polytope_dx @ robot.f() - alpha_polytope * h_polytope - np.sum(volume_grad_humansX * humans.controls ))
-                    A2.value = np.append( A, np.asarray(A_polytope), axis=0 )
-                    b2.value = np.append( b, np.asarray(b_polytope), axis=0 )
+                    # A2.value = np.append( A, np.asarray(A_polytope), axis=0 )
+                    # b2.value = np.append( b, np.asarray(b_polytope), axis=0 )
+                    A2_polytope.value = np.asarray(A_polytope)
+                    b2_polytope.value = np.asarray(b_polytope)
 
                 elif use_circle:
                     circle_r2, circle_c2, volume_new = compute_circle_from_states(jnp.asarray(robot.X), obstacle_states, jnp.asarray(humans.X), jnp.asarray(humans.controls), jnp.asarray(control_bound_polytope.A), jnp.asarray(control_bound_polytope.b.reshape(-1,1)) )
@@ -317,13 +334,17 @@ def simulate(robot_pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), kv=1.5, kx = 1.0, p
                     A2.value = np.append( A, np.asarray(A_polytope), axis=0 )
                     b2.value = np.append( b, np.asarray(b_polytope), axis=0 )
         
-            controller2.solve()
+            controller2.solve(solver=cp.GUROBI)
             if controller2.status == 'infeasible':
                 print(f"QP infeasible t = {t}")
                 return t
                 break
                 # exit()
-            robot.step( u2.value )
+            try:
+                robot.step( u2.value )
+            except:
+                print(f"QP infeasible t = {t}")
+                return t
             if plot:
                 robot.render_plot()
                 humans.render_plot(humans.X)
@@ -353,24 +374,30 @@ def simulate(robot_pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), kv=1.5, kx = 1.0, p
 
 
 # end_time = simulate(robot_pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), plot=True)
-xlim = [1.0, 1.5]
-ylim = [-0.5, 1.5]
-vel_lim = [0,1.5]
-kx_lim = [0.5, 1.5]
-kv_lim = [1.0, 4.0]
-num_samples = 500
+# xlim = [0.8, 1.2]
+# ylim = [0.8, 1.2]
+xlim = [0.9, 1.1]
+ylim = [0.9, 1.1]
+vel_lim = [1.2,1.4]
+kx_lim = [0.9, 1.1]
+# kv_lim = [2.5, 2.6]
+kv_lim = [1.5, 1.6]
+num_samples = 100
 end_times_with_fs = []
 end_times_without_fs = []
-# end_time = simulate(robot_pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), plot=True, kv = 1.5, kx = 1.0)
+print(f"limits: {xlim}, {ylim}, {vel_lim}, {kx_lim}, {kv_lim}, {num_samples}")
+# end_time = simulate(robot_pos = np.array([ 1.0, 1.0, np.pi, 1.3 ]), plot=True, kv = 2.5, kx = 1.0)
 
 for i in range(num_samples):
+    if i%50==0:
+        print(f"sample no: {i}")
     pos_x = np.random.uniform(xlim[0], xlim[1])
     pos_y = np.random.uniform(ylim[0], ylim[1])
     vel = np.random.uniform(vel_lim[0], vel_lim[1])
     gain_kx = np.random.uniform(kx_lim[0], kx_lim[1])
     gain_kv = np.random.uniform(kv_lim[0], kv_lim[1])
-    end_time_with_fs = simulate(robot_pos = np.array([ pos_x, pos_y, np.pi, vel ]), plot=True, kv = gain_kv, kx = gain_kx, include_fs_cbf=True)
-    end_time_without_fs = simulate(robot_pos = np.array([ pos_x, pos_y, np.pi, vel ]), plot=True, kv = gain_kv, kx = gain_kx, include_fs_cbf=False)
+    end_time_with_fs = simulate(robot_pos = np.array([ pos_x, pos_y, np.pi, vel ]), plot=False, kv = gain_kv, kx = gain_kx, include_fs_cbf=True)
+    end_time_without_fs = simulate(robot_pos = np.array([ pos_x, pos_y, np.pi, vel ]), plot=False, kv = gain_kv, kx = gain_kx, include_fs_cbf=False)
     end_times_with_fs.append(end_time_with_fs)
     end_times_without_fs.append(end_time_without_fs)
 
@@ -381,7 +408,7 @@ print(f"With fs mean: {np.mean(end_times_with_fs)}, std:{np.std(end_times_with_f
 print(f"Without fs mean: {np.mean(end_times_without_fs)}, std:{np.std(end_times_without_fs)}")
 plt.ioff()
 
-pdb.set_trace()
+# pdb.set_trace()
 # fig1.savefig(name+'.png')
 # fig1.savefig(name+'.eps')
 
