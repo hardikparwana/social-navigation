@@ -3,14 +3,14 @@ import cvxpy as cp
 import polytope as pt
 import matplotlib.pyplot as plt
 
-from bicycle_new import bicycle
+# from bicycle_new import bicycle
 from single_integrator import single_integrator_square
 from polytope_utils import plot_polytope_lines
 from obstacles import circle
 from matplotlib.animation import FFMpegWriter
 
 ######### holonomic controller
-n = 7 # number of constraints
+n = 5 #7 # number of constraints
 u2 = cp.Variable((2,1))
 u2_ref = cp.Parameter((2,1))
 objective2 = cp.Minimize( cp.sum_squares( u2 - u2_ref ) )
@@ -40,8 +40,8 @@ ax1[0].scatter( goal[0], goal[1], edgecolors ='g', facecolors='none' )
 alpha = 3.0#1.0#3.0
 obstacles = []
 obstacles.append( circle( ax1[0], pos = np.array([2.0,2.0]), radius = 0.5 ) )  
-obstacles.append( circle( ax1[0], pos = np.array([1.0,3.0]), radius = 0.5 ) )  
-obstacles.append( circle( ax1[0], pos = np.array([2.7,3.0]), radius = 0.5 ) )  
+# obstacles.append( circle( ax1[0], pos = np.array([1.0,3.0]), radius = 0.5 ) )  
+# obstacles.append( circle( ax1[0], pos = np.array([2.7,3.0]), radius = 0.5 ) )  
 
 robot = single_integrator_square( ax1[0], pos = np.array([ 0, 0 ]), dt = dt, plot_polytope=False )
 # robot = bicycle( ax1[0], pos = np.array([ 0, 0, np.pi/3, 2.0 ]), dt = dt, plot_polytope=False )
@@ -56,7 +56,7 @@ writer = FFMpegWriter(fps=10, metadata=metadata)
 volume = []
 pos_x = []
 pos_y = []
-with writer.saving(fig1, 'Videos/SI_feasible_space_paper.mp4', 100): 
+with writer.saving(fig1, 'Videos/test.mp4', 100): 
     while t < tf:
 
         # desired input
@@ -84,8 +84,10 @@ with writer.saving(fig1, 'Videos/SI_feasible_space_paper.mp4', 100):
         ax1[0].plot(pos_x, pos_y,'g')
 
         ax1[1].clear()
-        ax1[1].set_xlim( [-control_bound-1, control_bound+1] )
-        ax1[1].set_ylim( [-control_bound-1, control_bound+1] )
+        # ax1[1].set_xlim( [-control_bound-1, control_bound+1] )
+        # ax1[1].set_ylim( [-control_bound-1, control_bound+1] )
+        ax1[1].set_xlim( [-control_bound-1, control_bound+4] )
+        ax1[1].set_ylim( [-control_bound-1, control_bound+4] )
         hull = pt.Polytope( -A2.value, -b2.value )
         hull_plot = hull.plot(ax1[1], color = 'g')
         volume.append(pt.volume( hull))#, nsamples=50000 ))
@@ -94,6 +96,7 @@ with writer.saving(fig1, 'Videos/SI_feasible_space_paper.mp4', 100):
         ax1[1].set_xlabel('X Velocity'); ax1[1].set_ylabel('Y Velocity')
         # ax1[1].set_xlabel(r'$u_x$'); ax1[1].set_ylabel(r'$u_y$')
         ax1[1].scatter( u2.value[0,0], u2.value[1,0], c = 'r', label = 'CBF-QP chosen control' )
+        ax1[1].scatter( u2_ref.value[0,0], u2_ref.value[1,0], facecolors = 'none', edgecolors = 'r', label = 'Nominal input' )
         ax1[1].legend()
         ax1[1].set_title('Feasible Space for Control')
 
