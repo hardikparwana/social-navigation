@@ -11,3 +11,5 @@ refineCBF/refine_cbfs/utils/__pycache__/*
 .ipynb_checkpoints/
 media/*
 robot_models/__pycache__/*
+mppi/__pycache__/*
+robot_models/__pycache__/*

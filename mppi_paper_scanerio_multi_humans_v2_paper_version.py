@@ -6,9 +6,7 @@ from robot_models.single_integrator import single_integrator
 from robot_models.unicycle import unicycle
 from robot_models.humans import humans
 from utils import *
-# from mppi_foresee_multi_humans_paper_version import *
-# from mppi_foresee_multi_humans import *
-from mppi_montecarlo_multi_humans import *
+from mppi_foresee_multi_humans_paper_version import *
 # from mppi_foresee_multi_humans_mean import *
 
 import numpy as np
@@ -25,40 +23,36 @@ import pdb
 # from jax import config
 # config.update("jax_enable_x64", True)
 
-savefig = True
+
 # Simulatiojn Parameters
 num_humans = 10
 d_human = 0.4
-use_GPU = False #True #True #False
+use_GPU = False #True #False
 visualize = False #False
-num_iters = 20 #10 #10 #0 #50 #5 #200
-# name = "media/si_foresee_take_200samples"
-name = "media/si_mc_take_200samples_100human"
-robot_n = 2 #3
+num_iters = 3 #2 #0 #50 #5 #200
+name = "media/testtt"
 
-# case1: u_guess = -1
-# case2: u_guess = 0
 # Simulation parameters
 human_noise_cov = 4.0 # 4.0 #4.0 #0.5
 human_noise_mean = 0
 human_localization_noise = 0.05
 dt = 0.05 #0.05
-T = 70 #50 # simulation steps
-control_bound = 4#4 #7 #4
+T = 50 # simulation steps
+control_bound = 4 #7 #4
 kx = 4.0
 sensing_radius = 2
 factor = 2.0 # no of standard deviations
 choice = 0
-samples = 200 #500 #5000 #5000# 1000 #200 #100
-horizon = 40 #50 #80 #50 #100 #50
+samples = 1000 #5000# 1000 #200 #100
+horizon = 40 #80 #50 #100 #50
 human_ci_alpha = 0.05 #0.005
 
 # cost terms
 human_nominal_speed = jnp.array([2.5,0]).reshape(-1,1) #jnp.array([3.0,0]).reshape(-1,1)
-human_repulsion_gain = 2.0 #2.0 #2.5 #2.0 #2.0
+human_repulsion_gain = 2.0 #2.0
 costs_lambda = 0.03 #300 #0.05 #300
-cost_goal_coeff = 0.2 #1.0 #0.2 #1.0
-cost_safety_coeff = 10.0 #20.0 #10.0 #10.0
+cost_goal_coeff = 0.2 #1.0
+cost_safety_coeff = 10.0 #10.0
 
 humans_interact = True
 obstacles_interact = True
@@ -86,7 +80,7 @@ def run(aware=[True, True, True]):
     costs = []
     costs_array = np.zeros((1,T))
     stability_costs_array = np.zeros((1,T))
-    robot_pos_array_s = np.zeros((1,robot_n,T-1))
+    robot_pos_array_s = np.zeros((1,2,T-1))
     human_pos_array_s = np.zeros((1,2*num_humans,T-1))
     safety_obstacle_array_s = np.zeros((1,T-1))
     safety_human_array_s = np.zeros((1,T-1))
@@ -94,15 +88,13 @@ def run(aware=[True, True, True]):
         print(f"Iter : {iter}")
         cost_list = [0]
         stability_cost_list = [0]
-        robot_pos_array = np.zeros((robot_n,1))
+        robot_pos_array = np.zeros((2,1))
         human_pos_array = np.zeros((2*num_humans,1))
         safety_obstacle_list = []
         safety_human_list = []
         # Initialize robot
-        # robot = single_integrator( ax, pos=np.array([2.9,1.2]), dt=dt )
         robot = single_integrator( ax, pos=np.array([2.7,1.3]), dt=dt )
-        # robot = unicycle( ax, pos=np.array([2.7,1.3, -np.pi/2]), dt=dt )
-
+        
         ax.scatter(robot_goal[0,0], robot_goal[1,0], c='g', s=70)
 
         # Initialize robot
@@ -168,36 +160,21 @@ def run(aware=[True, True, True]):
 
         #generate initial guess
         u_guess = -1.0 * jnp.ones((horizon, 2))
-        # u_guess = jnp.append( -1.0 * jnp.ones((horizon, 1)), jnp.zeros((horizon, 1)), axis=1 )
-
-        def nominal_input(robot_x, G, d_min = 0.3):
-            G = np.copy(G.reshape(-1,1))
-            k_omega = 2.0 #0.5#2.5
-            k_v = 4.0 #2.0 #0.5
-            distance = max(np.linalg.norm( robot_x[0:2,0]-G[0:2,0] ) - d_min,0)
-            theta_d = np.arctan2(G[1,0]-robot_x[1,0],G[0,0]-robot_x[0,0])
-            error_theta = theta_d - robot_x[2,0]
-            omega = k_omega*error_theta   
-            v = k_v*( distance )*np.cos( error_theta )
-            return np.array([v, omega]).reshape(-1,1)
 
         # robot_x = jnp.copy(robot.X)
         # u_guess = jnp.zeros((horizon, 2))
         # for i in range(horizon):
-        #     # u_robot = jnp.clip( kx * ( robot_goal - robot_x ), -control_bound, control_bound)
-        #     # robot_x = robot_x + u_robot * dt
-        #     u_robot = jnp.clip( nominal_input(robot_x, robot_goal), -control_bound, control_bound )
-        #     robot_x = MPPI_FORESEE.robot_dynamics_step(robot_x, u_robot)
-        #     u_guess = u_guess.at[i,:].set(u_robot[:,0])            
+        #     u_robot = jnp.clip( kx * ( robot_goal - robot_x ), -control_bound, control_bound)
+        #     u_guess = u_guess.at[i,:].set(u_robot[:,0])
+        #     robot_x = robot_x + u_robot * dt
         # u_guess = None
         mppi = MPPI_FORESEE(horizon=horizon, samples=samples, input_size=2, dt=dt, sensing_radius=sensing_radius, human_noise_cov=human_noise_cov, std_factor=factor, control_bound=control_bound, control_init_ratio=control_init_ratio, u_guess=u_guess, human_nominal_speed=jnp.copy(humans.U), human_repulsion_gain=human_repulsion_gain, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, num_humans=num_humans, num_obstacles = num_obstacles, use_GPU=use_GPU, aware=aware, humans_interact=humans_interact, obstacles_interact=obstacles_interact)
 
         if visualize:
-            plot_num_samples = 4 #4
-            plot_num_samples_robot = 4 #20
+            plot_num_samples = 4
             sample_plot = []
             ax.plot([0,0], [0,0], 'r*')
-            for i in range(plot_num_samples_robot):
+            for i in range(plot_num_samples):
                 sample_plot.append( ax.plot(jnp.ones(mppi.horizon), 0*jnp.ones(mppi.horizon), 'g', alpha=0.2) )
             sample_plot.append( ax.plot(jnp.ones(mppi.horizon), 0*jnp.ones(mppi.horizon), 'b') )
 
@@ -211,11 +188,10 @@ def run(aware=[True, True, True]):
         # Human plot
         robot_action = 0
 
-        metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
-        writer = FFMpegWriter(fps=7, metadata=metadata)
+        # metadata = dict(title='Movie Test', artist='Matplotlib',comment='Movie support!')
+        # writer = FFMpegWriter(fps=7, metadata=metadata)
         # movie_name = 'mppi_multi_human_zero_u.mp4'
-        if 1:
-        # with writer.saving(fig, name + "_sim.mp4", 100): 
+        if 1: #with writer.saving(fig, movie_name, 100): 
 
             for t in range(T):
 
@@ -243,19 +219,15 @@ def run(aware=[True, True, True]):
 
                     robot_pos_array = np.append(robot_pos_array, robot.X, axis=1)
                     human_pos_array = np.append(human_pos_array, human_mus.reshape(-1,1, order='F'), axis=1)
-                    safety_obstacle_list.append( np.min( np.linalg.norm(robot.X[0:2]-obstaclesX, axis=0)-1.0 ) )
+                    safety_obstacle_list.append( np.min( np.linalg.norm(robot.X[0:2]-obstaclesX, axis=0) ) )
                     safety_human_list.append( np.min( np.linalg.norm(robot.X[0:2]-human_mus, axis=0) ) )
 
                 robot_sampled_states, robot_chosen_states, robot_action, human_mus_traj, human_covs_traj = mppi.compute_rollout_costs(robot.X, robot_goal, human_mus, human_covs, jnp.copy(humans.U), obstaclesX, aware)
 
                 if visualize:
-
-                    for i in range(plot_num_samples_robot):
-                        sample_plot[i][0].set_xdata( robot_sampled_states[robot_n*i, :] )
-                        sample_plot[i][0].set_ydata( robot_sampled_states[robot_n*i+1, :] )
                     for i in range(plot_num_samples):
-                        # sample_plot[i][0].set_xdata( robot_sampled_states[robot_n*i, :] )
-                        # sample_plot[i][0].set_ydata( robot_sampled_states[robot_n*i+1, :] )
+                        sample_plot[i][0].set_xdata( robot_sampled_states[2*i, :] )
+                        sample_plot[i][0].set_ydata( robot_sampled_states[2*i+1, :] )
 
                         # Human Prediction
                         for j in range(num_humans):
@@ -328,11 +300,9 @@ def run(aware=[True, True, True]):
     return costs_means, costs_stds, stability_costs_means, stability_costs_stds, (robot_pos_mus, robot_pos_covs), (human_pos_mus, human_pos_covs), (safety_human_mus, safety_human_covs), (safety_obstacle_mus, safety_obstacle_covs)
 
 costs_means_aware, costs_stds_aware, stability_costs_means_aware, stability_costs_stds_aware, robot_pos_aware, human_pos_aware, safety_human_aware, safety_obstacle_aware = run(aware=[True, True, True])
-
-# exit()
 costs_means_unaware, costs_stds_unaware, stability_costs_means_unaware, stability_costs_stds_unaware, robot_pos_unaware, human_pos_unaware, safety_human_unaware, safety_obstacle_unaware = run(aware=[False, True, True])
 costs_means_aware_mu, costs_stds_aware_mu, stability_costs_means_aware_mu, stability_costs_stds_aware_mu, robot_pos_aware_mu, human_pos_aware_mu, safety_human_aware_mu, safety_obstacle_aware_mu = run(aware=[True, False, True])
-# costs_means_aware_last, costs_stds_aware_last, stability_costs_means_aware_last, stability_costs_stds_aware_last, robot_pos_aware_last, human_pos_aware_last, safety_human_aware_last, safety_obstacle_aware_last = run(aware=[True, True, False])
+costs_means_aware_last, costs_stds_aware_last, stability_costs_means_aware_last, stability_costs_stds_aware_last, robot_pos_aware_last, human_pos_aware_last, safety_human_aware_last, safety_obstacle_aware_last = run(aware=[True, True, False])
 
 plt.ioff()
 fig2, ax2 = plt.subplots()
@@ -360,9 +330,8 @@ for j in range(num_humans):
     ax3.plot( human_pos_aware[0][2*j,:], human_pos_aware[0][2*j+1,:], 'r' )
     ax3.fill_between( human_pos_aware[0][2*j,:], human_pos_aware[0][2*j+1,:]-1.96*human_pos_aware[1][2*j+1,:], human_pos_aware[0][2*j+1,:]+1.96*human_pos_aware[1][2*j+1,:], facecolor='r', alpha=0.2 )
 ax3.scatter(robot_goal[0,0], robot_goal[1,0], edgecolors='g', s=70, facecolors='none')
-if savefig:
-    fig3.savefig(name+"_aware.png")
-    fig3.savefig(name+"_aware.eps")
+fig3.savefig(name+"_aware.png")
+fig3.savefig(name+"_aware.eps")
 
 fig3u, ax3u = plt.subplots()
 ax3u.set_title("Dynamics Unaware")
@@ -382,9 +351,8 @@ for j in range(num_humans):
     ax3u.plot( human_pos_aware[0][2*j,:], human_pos_aware[0][2*j+1,:], 'r' )
     ax3u.fill_between( human_pos_unaware[0][2*j,:], human_pos_unaware[0][2*j+1,:]-1.96*human_pos_unaware[1][2*j+1,:], human_pos_unaware[0][2*j+1,:]+1.96*human_pos_unaware[1][2*j+1,:], facecolor='r', alpha=0.2 )
 ax3u.scatter(robot_goal[0,0], robot_goal[1,0], edgecolors='g', s=70, facecolors='none')
-if savefig:
-    fig3u.savefig(name+"_unaware.png")
-    fig3u.savefig(name+"_unaware.eps")
+fig3u.savefig(name+"_unaware.png")
+fig3u.savefig(name+"_unaware.eps")
 
 
 def plot_costs(ax, costs_means, costs_stds, mu_color='g', std_color='y', label='Dynamics Aware'):
@@ -397,47 +365,41 @@ def plot_costs(ax, costs_means, costs_stds, mu_color='g', std_color='y', label='
 plot_costs( ax2, costs_means_aware[1:], costs_stds_aware[1:], mu_color='b', std_color='c', label='Dynamics Aware' )
 plot_costs( ax2, costs_means_unaware[1:], costs_stds_unaware[1:], mu_color='r', std_color='tab:brown', label='Dynamics Unaware' )
 plot_costs( ax2, costs_means_aware_mu[1:], costs_stds_aware_mu[1:], mu_color='g', std_color='y', label='Dynamics Aware - Mean' )
-# plot_costs( ax2, costs_means_aware_last[1:], costs_stds_aware_last[1:], mu_color='tab:purple', std_color='tab:olive', label='Assumed Dynamics' )
+plot_costs( ax2, costs_means_aware_last[1:], costs_stds_aware_last[1:], mu_color='tab:purple', std_color='tab:olive', label='Assumed Dynamics' )
 
 plot_costs( ax2, stability_costs_means_aware[1:], stability_costs_stds_aware[1:], mu_color='b--', std_color='c', label='Stability only - Dynamics Aware' )
 plot_costs( ax2, stability_costs_means_unaware[1:], stability_costs_stds_unaware[1:], mu_color='r--', std_color='tab:brown', label='Stability only - Dynamics Unaware' )
 plot_costs( ax2, stability_costs_means_aware_mu[1:], stability_costs_stds_aware_mu[1:], mu_color='g--', std_color='y', label='Stability only - Dynamics Aware - Mean' )
-# plot_costs( ax2, stability_costs_means_aware_last[1:], stability_costs_stds_aware_last[1:], mu_color='tab:purple', std_color='tab:olive', label='Stability only - Assumed Dynamics' )
+plot_costs( ax2, stability_costs_means_aware_last[1:], stability_costs_stds_aware_last[1:], mu_color='tab:purple', std_color='tab:olive', label='Stability only - Assumed Dynamics' )
 
 ax2.legend()
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("Accumulated Cost")
-ax2.set_ylim([0,800])
-if savefig:
-    fig2.savefig(name+"_costs.png")
-    fig2.savefig(name+"_costs.eps")
+fig2.savefig(name+"_costs.png")
+fig2.savefig(name+"_costs.eps")
 # Safety Human
 fig4, ax4 = plt.subplots()
 plot_costs( ax4, safety_human_aware[0], safety_human_aware[1], mu_color='b', std_color='c', label='Dynamics Aware' )
 plot_costs( ax4, safety_human_unaware[0], safety_human_unaware[1], mu_color='r', std_color='tab:brown', label='Dynamics Unaware' )
 plot_costs( ax4, safety_human_aware_mu[0], safety_human_aware_mu[1], mu_color='g', std_color='y', label='Dynamics Aware - Mean' )
-# plot_costs( ax4, safety_human_aware_last[0], safety_human_aware_last[1], mu_color='tab:purple', std_color='tab:olive', label='Assumed Dynamics' )
+plot_costs( ax4, safety_human_aware_last[0], safety_human_aware_last[1], mu_color='tab:purple', std_color='tab:olive', label='Assumed Dynamics' )
 ax4.legend()
 ax4.set_xlabel("time (s)")
 ax4.set_ylabel("Min Distance to Humans")
-ax4.set_ylim([-0.1, 3.5])
-if savefig:
-    fig4.savefig(name+"_human_dists.png")
-    fig4.savefig(name+"_human_dists.eps")
+fig4.savefig(name+"_human_dists.png")
+fig4.savefig(name+"_human_dists.eps")
 
 # Safety Obstacle
 fig5, ax5 = plt.subplots()
 plot_costs( ax5, safety_obstacle_aware[0], safety_obstacle_aware[1], mu_color='b', std_color='c', label='Dynamics Aware' )
 plot_costs( ax5, safety_obstacle_unaware[0], safety_obstacle_unaware[1], mu_color='r', std_color='tab:brown', label='Dynamics Unaware' )
 plot_costs( ax5, safety_obstacle_aware_mu[0], safety_obstacle_aware_mu[1], mu_color='g', std_color='y', label='Dynamics Aware - Mean' )
-# plot_costs( ax5, safety_obstacle_aware_last[0], safety_obstacle_aware_last[1], mu_color='tab:purple', std_color='tab:olive', label='Assumed Dynamics' )
+plot_costs( ax5, safety_obstacle_aware_last[0], safety_obstacle_aware_last[1], mu_color='tab:purple', std_color='tab:olive', label='Assumed Dynamics' )
 ax5.legend()
 ax5.set_xlabel("time (s)")
 ax5.set_ylabel("Min Distance to obstacles")
-ax5.set_ylim([0.0, 4.0])
-if savefig:
-    fig5.savefig(name+"_obstacle_dists.eps")
-    fig5.savefig(name+"_obstacle_dists.png")
+fig5.savefig(name+"_obstacle_dists.eps")
+fig5.savefig(name+"_obstacle_dists.png")
 
 
 
